@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я ОК - Варіант 1 - Всі розміри</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #1a1a1a;
+            padding: 40px 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #0057B7, #34C759);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .sizes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        .size-card {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .size-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: white;
+        }
+        
+        .size-label {
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+        
+        .logo-preview {
+            background: #F5F5F7;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            min-height: 150px;
+        }
+        
+        .logo-preview.dark {
+            background: #000000;
+        }
+        
+        .logo-icon {
+            border-radius: 25%;
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(0, 87, 183, 0.3);
+        }
+        
+        .logo-preview.dark .logo-icon {
+            background: linear-gradient(135deg, #4A90E2, #6BA3F0);
+        }
+        
+        .specs {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .category {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .category h2 {
+            font-size: 32px;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .toggle-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            color: #000;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <button class="toggle-btn" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+    
+    <div class="container">
+        <div class="header">
+            <h1>Варіант 1: Monobank Style</h1>
+            <p>Всі розміри для App Icon, Notification, Favicon</p>
+        </div>
+
+        <!-- App Icon Sizes -->
+        <div class="category">
+            <h2>📱 App Icon</h2>
+            <div class="sizes-grid">
+                <div class="size-card">
+                    <div class="size-title">App Store</div>
+                    <div class="size-label">1024×1024</div>
+                    <div class="logo-preview" id="preview-1024">
+                        <div class="logo-icon" style="width: 200px; height: 200px; font-size: 100px;">💚</div>
+                    </div>
+                    <div class="specs">Border: 256px<br>Symbol: 512px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">iOS Large</div>
+                    <div class="size-label">512×512</div>
+                    <div class="logo-preview" id="preview-512">
+                        <div class="logo-icon" style="width: 150px; height: 150px; font-size: 75px;">💚</div>
+                    </div>
+                    <div class="specs">Border: 128px<br>Symbol: 256px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">Android</div>
+                    <div class="size-label">192×192</div>
+                    <div class="logo-preview" id="preview-192">
+                        <div class="logo-icon" style="width: 120px; height: 120px; font-size: 60px;">💚</div>
+                    </div>
+                    <div class="specs">Border: 48px<br>Symbol: 96px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">iPhone</div>
+                    <div class="size-label">180×180</div>
+                    <div class="logo-preview" id="preview-180">
+                        <div class="logo-icon" style="width: 110px; height: 110px; font-size: 55px;">💚</div>
+                    </div>
+                    <div class="specs">Border: 45px<br>Symbol: 90px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">iPhone</div>
+                    <div class="size-label">120×120</div>
+                    <div class="logo-preview" id="preview-120">
+                        <div class="logo-icon" style="width: 100px; height: 100px; font-size: 50px;">💚</div>
+                    </div>
+                    <div class="specs">Border: 30px<br>Symbol: 60px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">iPhone</div>
+                    <div class="size-label">60×60</div>
+                    <div class="logo-preview" id="preview-60">
+                        <div class="logo-icon" style="width: 60px; height: 60px; font-size: 30px;">💚</div>
+                    </div>
+                    <div class="specs">Border: 15px<br>Symbol: 30px</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Sizes -->
+        <div class="category">
+            <h2>🔔 Notification Badge</h2>
+            <div class="sizes-grid">
+                <div class="size-card">
+                    <div class="size-title">iOS</div>
+                    <div class="size-label">64×64</div>
+                    <div class="logo-preview" id="preview-notif-64">
+                        <div class="logo-icon" style="width: 64px; height: 64px; font-size: 32px; box-shadow: none;">💚</div>
+                    </div>
+                    <div class="specs">Border: 16px<br>Symbol: 32px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">Android</div>
+                    <div class="size-label">48×48</div>
+                    <div class="logo-preview" id="preview-notif-48">
+                        <div class="logo-icon" style="width: 48px; height: 48px; font-size: 24px; box-shadow: none;">💚</div>
+                    </div>
+                    <div class="specs">Border: 12px<br>Symbol: 24px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">Small</div>
+                    <div class="size-label">24×24</div>
+                    <div class="logo-preview" id="preview-notif-24">
+                        <div class="logo-icon" style="width: 24px; height: 24px; font-size: 12px; box-shadow: none;">✓</div>
+                    </div>
+                    <div class="specs">Border: 6px<br>Symbol: ✓</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Favicon Sizes -->
+        <div class="category">
+            <h2>🌐 Favicon</h2>
+            <div class="sizes-grid">
+                <div class="size-card">
+                    <div class="size-title">Standard</div>
+                    <div class="size-label">32×32</div>
+                    <div class="logo-preview" id="preview-favicon-32">
+                        <div class="logo-icon" style="width: 32px; height: 32px; font-size: 16px; box-shadow: none;">💚</div>
+                    </div>
+                    <div class="specs">Border: 8px<br>Symbol: 16px</div>
+                </div>
+                
+                <div class="size-card">
+                    <div class="size-title">Small</div>
+                    <div class="size-label">16×16</div>
+                    <div class="logo-preview" id="preview-favicon-16">
+                        <div class="logo-icon" style="width: 16px; height: 16px; box-shadow: none;"></div>
+                    </div>
+                    <div class="specs">Border: 4px<br>No symbol</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isDarkMode = false;
+
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            const previews = document.querySelectorAll('.logo-preview');
+            
+            previews.forEach(p => {
+                p.classList.toggle('dark', isDarkMode);
+            });
+        }
+    </script>
+</body>
+</html>

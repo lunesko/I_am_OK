@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я ОК - Інтерактивний прототип</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        .device-frame {
+            width: 375px;
+            height: 812px;
+            background: #000;
+            border-radius: 40px;
+            padding: 12px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+        
+        .notch {
+            width: 150px;
+            height: 30px;
+            background: #000;
+            border-radius: 0 0 20px 20px;
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+        
+        .screen-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 32px;
+            overflow: hidden;
+            position: relative;
+            background: var(--bg-color);
+        }
+        
+        /* Light Theme */
+        .light-theme {
+            --bg-color: #F5F5F7;
+            --card-bg: #FFFFFF;
+            --text-primary: #000000;
+            --text-secondary: #666666;
+            --border-color: #E5E5EA;
+        }
+        
+        /* Dark Theme */
+        .dark-theme {
+            --bg-color: #000000;
+            --card-bg: #1C1C1E;
+            --text-primary: #FFFFFF;
+            --text-secondary: #999999;
+            --border-color: #38383A;
+        }
+        
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .screen.active {
+            opacity: 1;
+            transform: translateX(0);
+            z-index: 10;
+        }
+        
+        .screen.exit-left {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        
+        .header-icons {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--bg-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+        }
+        
+        .icon-btn:active {
+            transform: scale(0.9);
+        }
+        
+        /* Content */
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--card-bg);
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        /* Auth Screen */
+        .auth-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 40px 20px;
+        }
+        
+        .logo {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 56px;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .app-title {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+        
+        .app-subtitle {
+            font-size: 16px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .auth-btn {
+            background: #3C3C43;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 300px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            border: none;
+            font-size: 17px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.3s;
+        }
+        
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .auth-btn.secondary {
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        /* Status Cards */
+        .status-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .status-card:hover {
+            transform: translateX(5px);
+        }
+        
+        .status-card.selected {
+            background: var(--bg-color);
+            border-color: #0057B7;
+        }
+        
+        .status-emoji {
+            font-size: 28px;
+        }
+        
+        .status-text {
+            flex: 1;
+            color: var(--text-primary);
+            font-size: 17px;
+        }
+        
+        .check-icon {
+            color: #0057B7;
+            font-size: 24px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .status-card.selected .check-icon {
+            opacity: 1;
+        }
+        
+        /* Big Button */
+        .big-btn {
+            background: linear-gradient(135deg, #34C759, #30D158);
+            border-radius: 30px;
+            padding: 30px;
+            text-align: center;
+            color: white;
+            font-size: 28px;
+            font-weight: 700;
+            margin: 20px 0;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            box-shadow: 0 10px 30px rgba(52, 199, 89, 0.3);
+            transition: all 0.3s;
+        }
+        
+        .big-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Success Screen */
+        .success-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            animation: fadeIn 0.5s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            background: #34C759;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            color: white;
+            margin-bottom: 30px;
+            animation: checkBounce 0.6s;
+        }
+        
+        @keyframes checkBounce {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .success-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+        
+        .recipient-list {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            width: 100%;
+            max-width: 300px;
+        }
+        
+        .recipient-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            color: var(--text-primary);
+            animation: slideIn 0.4s backwards;
+        }
+        
+        .recipient-item:nth-child(1) { animation-delay: 0.1s; }
+        .recipient-item:nth-child(2) { animation-delay: 0.2s; }
+        .recipient-item:nth-child(3) { animation-delay: 0.3s; }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        /* Contact Item */
+        .contact-item {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .contact-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #34C759, #30D158);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .contact-info {
+            flex: 1;
+        }
+        
+        .contact-name {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .contact-time {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        
+        /* Gradient Card */
+        .gradient-card {
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            border-radius: 20px;
+            padding: 24px;
+            color: white;
+            margin-top: 20px;
+        }
+        
+        .gradient-card h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .gradient-card p {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+        
+        .white-btn {
+            background: white;
+            color: #0057B7;
+            padding: 14px;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        
+        .white-btn:active {
+            transform: scale(0.95);
+        }
+        
+        /* Controls */
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 2000;
+        }
+        
+        .control-btn {
+            padding: 12px 20px;
+            background: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn.active {
+            background: #0057B7;
+            color: white;
+        }
+        
+        /* Navigation Dots */
+        .nav-dots {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 2000;
+        }
+        
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .dot.active {
+            width: 24px;
+            background: white;
+        }
+        
+        /* Loading Animation */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 87, 183, 0.2);
+            border-top-color: #0057B7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* Time indicator */
+        .time-indicator {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: auto;
+            padding: 10px;
+        }
+        
+        /* Warning box */
+        .warning-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        @media (max-width: 450px) {
+            .device-frame {
+                width: 100%;
+                max-width: 375px;
+                height: 90vh;
+            }
+            
+            .controls {
+                top: auto;
+                bottom: 100px;
+                right: 10px;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Controls -->
+    <div class="controls">
+        <button class="control-btn active" onclick="toggleTheme()">
+            <span id="theme-icon">🌙</span> Dark Mode
+        </button>
+        <button class="control-btn" onclick="resetDemo()">
+            🔄 Перезапустити
+        </button>
+    </div>
+    
+    <!-- Navigation Dots -->
+    <div class="nav-dots">
+        <div class="dot active" data-screen="0" onclick="goToScreen(0)"></div>
+        <div class="dot" data-screen="1" onclick="goToScreen(1)"></div>
+        <div class="dot" data-screen="2" onclick="goToScreen(2)"></div>
+        <div class="dot" data-screen="3" onclick="goToScreen(3)"></div>
+        <div class="dot" data-screen="4" onclick="goToScreen(4)"></div>
+    </div>
+
+    <!-- Device Frame -->
+    <div class="device-frame">
+        <div class="notch"></div>
+        <div class="screen-container light-theme" id="screenContainer">
+            
+            <!-- Screen 1: Auth -->
+            <div class="screen active" id="screen-auth">
+                <div class="auth-container">
+                    <div class="logo">💚</div>
+                    <div class="app-title">Я ОК</div>
+                    <div class="app-subtitle">Один дотик — спокій для близьких</div>
+                    <button class="auth-btn" onclick="navigateTo('main')">
+                        <span>🇺🇦</span>
+                        <span>Увійти через Дія</span>
+                    </button>
+                    <button class="auth-btn secondary" onclick="navigateTo('main')">
+                        <span>Увійти через BankID</span>
+                    </button>
+                </div>
+                <div class="footer">
+                    <div style="text-align: center; font-size: 13px; color: var(--text-secondary);">
+                        Без реєстрації. Без геолокації. Безпечно.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 2: Main -->
+            <div class="screen" id="screen-main">
+                <div class="header">
+                    <div class="title">Я ОК</div>
+                    <div class="header-icons">
+                        <div class="icon-btn" onclick="navigateTo('family')">👥</div>
+                        <div class="icon-btn" onclick="navigateTo('settings')">⚙️</div>
+                    </div>
+                </div>
+                <div class="content">
+                    <div class="status-card selected" data-status="ok" onclick="selectStatus(this)">
+                        <div class="status-emoji">💚</div>
+                        <div class="status-text">Я ОК</div>
+                        <div class="check-icon">✓</div>
+                    </div>
+                    <div class="status-card" data-status="busy" onclick="selectStatus(this)">
+                        <div class="status-emoji">💛</div>
+                        <div class="status-text">Все нормально, зайнятий</div>
+                        <div class="check-icon">✓</div>
+                    </div>
+                    <div class="status-card" data-status="later" onclick="selectStatus(this)">
+                        <div class="status-emoji">💙</div>
+                        <div class="status-text">Зателефоную пізніше</div>
+                        <div class="check-icon">✓</div>
+                    </div>
+                    <div class="status-card" data-status="hug" onclick="selectStatus(this)">
+                        <div class="status-emoji">🤍</div>
+                        <div class="status-text">Обійми</div>
+                        <div class="check-icon">✓</div>
+                    </div>
+                    <button class="big-btn" onclick="sendCheckin()">
+                        Відправити
+                    </button>
+                    <div class="time-indicator">
+                        🕐 Останній раз: Сьогодні, 09:15
+                    </div>
+                </div>
+                <div class="footer">
+                    <div class="warning-box">
+                        <span style="color: #FF9500;">🛡️</span>
+                        <span>Геолокація вимкнена. Не використовуй біля позицій.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 3: Success -->
+            <div class="screen" id="screen-success">
+                <div class="header">
+                    <div class="title">Я ОК</div>
+                    <div class="header-icons">
+                        <div class="icon-btn" onclick="navigateTo('main')">✕</div>
+                    </div>
+                </div>
+                <div class="content">
+                    <div class="success-container">
+                        <div class="success-icon">✓</div>
+                        <div class="success-title">Відправлено</div>
+                        <div class="recipient-list">
+                            <div class="recipient-item">
+                                <span>Мама</span>
+                                <span style="color: #34C759;">✓</span>
+                            </div>
+                            <div class="recipient-item">
+                                <span>Оля</span>
+                                <span style="color: #34C759;">✓</span>
+                            </div>
+                            <div class="recipient-item">
+                                <span>Сашко</span>
+                                <span style="color: #999;">⏱</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 4: Family -->
+            <div class="screen" id="screen-family">
+                <div class="header">
+                    <div class="icon-btn" onclick="navigateTo('main')">←</div>
+                    <div class="title">Мої люди</div>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div class="content">
+                    <div class="contact-item">
+                        <div class="avatar">М</div>
+                        <div class="contact-info">
+                            <div class="contact-name">Мама</div>
+                            <div class="contact-time">2 год тому</div>
+                        </div>
+                        <span style="color: #34C759; font-size: 20px;">✓</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="avatar">О</div>
+                        <div class="contact-info">
+                            <div class="contact-name">Оля</div>
+                            <div class="contact-time">1 год тому</div>
+                        </div>
+                        <span style="color: #34C759; font-size: 20px;">✓</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="avatar">С</div>
+                        <div class="contact-info">
+                            <div class="contact-name">Сашко</div>
+                            <div class="contact-time">Ще не бачив</div>
+                        </div>
+                    </div>
+                    <div class="contact-item" style="justify-content: center; color: #0057B7; font-weight: 600;">
+                        <span style="font-size: 20px;">+</span>
+                        <span>Додати людину</span>
+                    </div>
+                    <div class="gradient-card">
+                        <div style="font-size: 32px; margin-bottom: 10px;">❤️</div>
+                        <h3>Зворотній зв'язок</h3>
+                        <p>Твої близькі теж можуть надіслати тобі швидке повідомлення</p>
+                        <button class="white-btn">
+                            Надіслати "Вдома все добре"
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 5: Settings -->
+            <div class="screen" id="screen-settings">
+                <div class="header">
+                    <div class="icon-btn" onclick="navigateTo('main')">←</div>
+                    <div class="title">Налаштування</div>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div class="content">
+                    <div class="contact-item">
+                        <div class="icon-btn" style="background: var(--bg-color);">🔔</div>
+                        <div class="contact-info">
+                            <div class="contact-name">Нагадувати мені</div>
+                            <div class="contact-time">Кожен день о 09:00</div>
+                        </div>
+                        <span style="color: #999;">›</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="icon-btn" style="background: var(--bg-color);">⚠️</div>
+                        <div class="contact-info">
+                            <div class="contact-name">Попередити близьких</div>
+                            <div class="contact-time">3 дні без зв'язку</div>
+                        </div>
+                        <span style="color: #999;">›</span>
+                    </div>
+                    <div class="contact-item">
+                        <div class="icon-btn" style="background: var(--bg-color);">🌙</div>
+                        <div class="contact-info">
+                            <div class="contact-name">Тихий режим</div>
+                            <div class="contact-time">Без звуку вночі</div>
+                        </div>
+                        <div style="width: 44px; height: 26px; background: #34C759; border-radius: 13px; position: relative;">
+                            <div style="width: 22px; height: 22px; background: white; border-radius: 11px; position: absolute; right: 2px; top: 2px;"></div>
+                        </div>
+                    </div>
+                    <div class="gradient-card" style="background: linear-gradient(135deg, #0057B7, #FFD700); margin-top: auto;">
+                        <div style="font-size: 32px; margin-bottom: 10px;">❤️</div>
+                        <h3>Підтримати проєкт</h3>
+                        <p>Я ОК — безкоштовний для військових та їх родин</p>
+                        <button class="white-btn">
+                            Задонатити на ЗСУ
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let currentScreen = 0;
+        const screens = ['auth', 'main', 'success', 'family', 'settings'];
+        let isDarkMode = false;
+
+        function navigateTo(screenName) {
+            const currentEl = document.getElementById(`screen-${screens[currentScreen]}`);
+            const newIndex = screens.indexOf(screenName);
+            const newEl = document.getElementById(`screen-${screenName}`);
+            
+            // Exit animation
+            currentEl.classList.add('exit-left');
+            currentEl.classList.remove('active');
+            
+            // Enter animation
+            setTimeout(() => {
+                newEl.classList.add('active');
+                currentScreen = newIndex;
+                updateDots();
+            }, 100);
+        }
+
+        function goToScreen(index) {
+            navigateTo(screens[index]);
+        }
+
+        function updateDots() {
+            document.querySelectorAll('.dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === currentScreen);
+            });
+        }
+
+        function selectStatus(card) {
+            document.querySelectorAll('.status-card').forEach(c => {
+                c.classList.remove('selected');
+            });
+            card.classList.add('selected');
+        }
+
+        function sendCheckin() {
+            // Show loading
+            const mainScreen = document.getElementById('screen-main');
+            const loading = document.createElement('div');
+            loading.className = 'loading';
+            mainScreen.appendChild(loading);
+            
+            // Navigate to success after delay
+            setTimeout(() => {
+                loading.remove();
+                navigateTo('success');
+            }, 1000);
+        }
+
+        function toggleTheme() {
+            const container = document.getElementById('screenContainer');
+            const btn = document.querySelector('.control-btn');
+            const icon = document.getElementById('theme-icon');
+            
+            isDarkMode = !isDarkMode;
+            
+            if (isDarkMode) {
+                container.classList.remove('light-theme');
+                container.classList.add('dark-theme');
+                icon.textContent = '☀️';
+                btn.classList.add('active');
+            } else {
+                container.classList.remove('dark-theme');
+                container.classList.add('light-theme');
+                icon.textContent = '🌙';
+                btn.classList.remove('active');
+            }
+        }
+
+        function resetDemo() {
+            navigateTo('auth');
+        }
+
+        // Swipe navigation
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        const container = document.getElementById('screenContainer');
+
+        container.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        container.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            if (touchEndX < touchStartX - 50 && currentScreen < screens.length - 1) {
+                // Swipe left - next screen
+                navigateTo(screens[currentScreen + 1]);
+            }
+            if (touchEndX > touchStartX + 50 && currentScreen > 0) {
+                // Swipe right - previous screen
+                navigateTo(screens[currentScreen - 1]);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowRight' && currentScreen < screens.length - 1) {
+                navigateTo(screens[currentScreen + 1]);
+            }
+            if (e.key === 'ArrowLeft' && currentScreen > 0) {
+                navigateTo(screens[currentScreen - 1]);
+            }
+        });
+    </script>
+</body>
+</html>

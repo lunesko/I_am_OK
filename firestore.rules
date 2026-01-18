@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================
+    // HELPER FUNCTIONS
+    // ============================================================
+    
+    // Перевірка автентифікації
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Перевірка власника
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ============================================================
+    // USERS COLLECTION
+    // ============================================================
+    
+    match /users/{userId} {
+      // Створення: тільки власник може створити свій профіль
+      allow create: if isAuthenticated() && 
+        request.auth.uid == userId &&
+        // Перевірка обов'язкових полів
+        request.resource.data.keys().hasAll(['name', 'email', 'createdAt', 'contactIds']) &&
+        request.resource.data.name is string &&
+        request.resource.data.email is string &&
+        request.resource.data.contactIds is list;
+      
+      // Читання:
+      // - Власник може читати свій профіль повністю
+      // - Контакти можуть читати тільки базову інформацію (ім'я, аватар)
+      allow read: if isAuthenticated() && (
+        isOwner(userId) ||
+        // Контакти можуть читати базову інформацію
+        (request.auth.uid in resource.data.contactIds)
+      );
+      
+      // Оновлення: тільки власник
+      // Дозволяємо оновлювати: name, phone, contactIds, pushToken
+      allow update: if isOwner(userId) &&
+        // Забороняємо змінювати id та email
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      
+      // Видалення: тільки власник
+      allow delete: if isOwner(userId);
+    }
+    
+    // ============================================================
+    // CHECKINS COLLECTION
+    // ============================================================
+    
+    match /checkins/{checkinId} {
+      // Створення: тільки автентифікований користувач може створити свій чекін
+      allow create: if isAuthenticated() && 
+        // Перевірка, що userId відповідає авторизованому користувачу
+        request.resource.data.userId == request.auth.uid &&
+        // Перевірка обов'язкових полів
+        request.resource.data.keys().hasAll(['userId', 'status', 'timestamp', 'recipientIds']) &&
+        request.resource.data.status is string &&
+        request.resource.data.timestamp is timestamp &&
+        request.resource.data.recipientIds is list &&
+        // Перевірка валідності статусу
+        request.resource.data.status in ['ok', 'busy', 'later', 'hug'];
+      
+      // Читання:
+      // - Власник може читати свої чекіни
+      // - Отримувачі можуть читати чекіни, адресовані їм
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || 
+        request.auth.uid in resource.data.recipientIds
+      );
+      
+      // Оновлення:
+      // - Власник може оновлювати тільки synced
+      // - Отримувачі можуть оновлювати тільки readBy
+      allow update: if isAuthenticated() && (
+        // Власник може оновлювати synced
+        (request.auth.uid == resource.data.userId &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['synced']) &&
+         request.resource.data.userId == resource.data.userId &&
+         request.resource.data.status == resource.data.status &&
+         request.resource.data.timestamp == resource.data.timestamp &&
+         request.resource.data.recipientIds == resource.data.recipientIds) ||
+        // Отримувачі можуть оновлювати readBy
+        (request.auth.uid in resource.data.recipientIds &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) &&
+         request.resource.data.userId == resource.data.userId &&
+         request.resource.data.status == resource.data.status &&
+         request.resource.data.timestamp == resource.data.timestamp &&
+         request.resource.data.recipientIds == resource.data.recipientIds &&
+         request.resource.data.synced == resource.data.synced)
+      );
+      
+      // Видалення: тільки власник
+      allow delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // ============================================================
+    // DENY ALL OTHER ACCESS
+    // ============================================================
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

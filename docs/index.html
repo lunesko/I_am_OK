@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я ОК — Документація</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #f5f5f7 0%, #e8e8ea 100%);
+            color: #1d1d1f;
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 40px 0;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 30px rgba(0, 87, 183, 0.2);
+        }
+        
+        h1 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #0057B7;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            color: #666;
+        }
+        
+        .nav {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+        
+        .nav-card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            text-decoration: none;
+            color: #1d1d1f;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s;
+            min-width: 200px;
+        }
+        
+        .nav-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+        
+        .nav-card h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #0057B7;
+        }
+        
+        .nav-card p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .links a {
+            color: #0057B7;
+            text-decoration: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">💚</div>
+            <h1>Я ОК</h1>
+            <p class="subtitle">Документація та правові документи</p>
+        </header>
+
+        <div class="nav">
+            <a href="privacy.html" class="nav-card">
+                <h2>🔒</h2>
+                <h2>Політика конфіденційності</h2>
+                <p>Як ми збираємо та захищаємо ваші дані</p>
+            </a>
+            
+            <a href="terms.html" class="nav-card">
+                <h2>📋</h2>
+                <h2>Умови використання</h2>
+                <p>Правила користування додатком</p>
+            </a>
+            
+            <a href="support.html" class="nav-card">
+                <h2>💬</h2>
+                <h2>Підтримка</h2>
+                <p>FAQ та контакти</p>
+            </a>
+        </div>
+
+        <footer>
+            <div class="links">
+                <a href="https://poruch.app">Головна</a>
+                <a href="mailto:support@poruch.app">Підтримка</a>
+            </div>
+            <p style="margin-top: 20px;">
+                © 2026 Poruch. Всі права захищені.<br>
+                Зроблено в Україні 🇺🇦
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
