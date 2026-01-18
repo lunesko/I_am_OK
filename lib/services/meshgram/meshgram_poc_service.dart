@@ -1,23 +1,24 @@
 import 'dart:async';
-import 'package:flutter_nearby_connections/flutter_nearby_connections.dart';
+// import 'package:flutter_nearby_connections/flutter_nearby_connections.dart'; // Тимчасово вимкнено
+import 'nearby_connections_stub.dart' as nearby;
 
 /// MeshGram PoC: мінімальна реалізація Wi-Fi Direct для демонстрації.
 /// Використовує Google Nearby Connections API (підтримує Wi-Fi Direct, Bluetooth, BLE).
 class MeshGramPoCService {
   static const String serviceId = 'com.poruch.yaok.meshgram';
   
-  NearbyService? _nearbyService;
+  nearby.NearbyService? _nearbyService;
   StreamSubscription? _subscription;
-  final List<Device> _devices = [];
+  final List<nearby.Device> _devices = [];
   final List<String> _messages = [];
   
-  List<Device> get devices => List.unmodifiable(_devices);
+  List<nearby.Device> get devices => List.unmodifiable(_devices);
   List<String> get messages => List.unmodifiable(_messages);
   
   StreamController<List<Device>>? _devicesController;
   StreamController<String>? _messagesController;
   
-  Stream<List<Device>> get devicesStream => _devicesController?.stream ?? const Stream.empty();
+  Stream<List<nearby.Device>> get devicesStream => _devicesController?.stream ?? const Stream.empty();
   Stream<String> get messagesStream => _messagesController?.stream ?? const Stream.empty();
   
   bool _isInitialized = false;
@@ -33,8 +34,8 @@ class MeshGramPoCService {
     if (_isInitialized) return;
     
     try {
-      _nearbyService = NearbyService();
-      _devicesController = StreamController<List<Device>>.broadcast();
+      _nearbyService = nearby.NearbyService();
+      _devicesController = StreamController<List<nearby.Device>>.broadcast();
       _messagesController = StreamController<String>.broadcast();
       
       _isInitialized = true;
@@ -52,7 +53,7 @@ class MeshGramPoCService {
     try {
       await _nearbyService!.startAdvertising(
         serviceId,
-        strategy: Strategy.P2P_STAR,
+        strategy: nearby.Strategy.P2P_STAR,
         onConnectionInitiated: _onConnectionInitiated,
         onConnectionResult: _onConnectionResult,
         onDisconnected: _onDisconnected,
@@ -73,7 +74,7 @@ class MeshGramPoCService {
     try {
       await _nearbyService!.startDiscovery(
         serviceId,
-        strategy: Strategy.P2P_STAR,
+        strategy: nearby.Strategy.P2P_STAR,
         onEndpointFound: _onEndpointFound,
         onEndpointLost: _onEndpointLost,
       );
@@ -113,7 +114,7 @@ class MeshGramPoCService {
   }
   
   /// Підключитися до пристрою.
-  Future<void> connectToDevice(Device device) async {
+  Future<void> connectToDevice(nearby.Device device) async {
     try {
       await _nearbyService!.requestConnection(
         device.deviceId,
@@ -153,10 +154,10 @@ class MeshGramPoCService {
   void _onEndpointFound(String endpointId, String endpointName, String serviceId) {
     print('🔍 MeshGram PoC: Found device: $endpointName ($endpointId)');
     
-    final device = Device(
+    final device = nearby.Device(
       deviceId: endpointId,
       deviceName: endpointName,
-      state: SessionState.notConnected,
+      state: nearby.SessionState.notConnected,
     );
     
     if (!_devices.any((d) => d.deviceId == endpointId)) {
@@ -173,7 +174,7 @@ class MeshGramPoCService {
   }
   
   /// Обробка ініціалізації з'єднання.
-  void _onConnectionInitiated(String endpointId, ConnectionInfo info) {
+  void _onConnectionInitiated(String endpointId, nearby.ConnectionInfo info) {
     print('🔗 MeshGram PoC: Connection initiated with $endpointId');
     
     // Автоматично приймаємо з'єднання
@@ -185,26 +186,26 @@ class MeshGramPoCService {
   }
   
   /// Обробка результату з'єднання.
-  void _onConnectionResult(String endpointId, Status status) {
+  void _onConnectionResult(String endpointId, nearby.Status status) {
     print('🔗 MeshGram PoC: Connection result: $status');
     
     final device = _devices.firstWhere(
       (d) => d.deviceId == endpointId,
-      orElse: () => Device(
+      orElse: () => nearby.Device(
         deviceId: endpointId,
         deviceName: 'Unknown',
-        state: SessionState.notConnected,
+        state: nearby.SessionState.notConnected,
       ),
     );
     
     final index = _devices.indexOf(device);
     if (index != -1) {
-      _devices[index] = Device(
+      _devices[index] = nearby.Device(
         deviceId: device.deviceId,
         deviceName: device.deviceName,
-        state: status == Status.CONNECTED
-            ? SessionState.connected
-            : SessionState.notConnected,
+        state: status == nearby.Status.CONNECTED
+            ? nearby.SessionState.connected
+            : nearby.SessionState.notConnected,
       );
       _devicesController?.add(_devices);
     }
@@ -216,18 +217,18 @@ class MeshGramPoCService {
     
     final index = _devices.indexWhere((d) => d.deviceId == endpointId);
     if (index != -1) {
-      _devices[index] = Device(
+      _devices[index] = nearby.Device(
         deviceId: _devices[index].deviceId,
         deviceName: _devices[index].deviceName,
-        state: SessionState.notConnected,
+        state: nearby.SessionState.notConnected,
       );
       _devicesController?.add(_devices);
     }
   }
   
   /// Обробка отриманого повідомлення.
-  void _onPayloadReceived(String endpointId, Payload payload) {
-    if (payload.type == PayloadType.BYTES) {
+  void _onPayloadReceived(String endpointId, nearby.Payload payload) {
+    if (payload.type == nearby.PayloadType.BYTES) {
       final message = String.fromCharCodes(payload.bytes!);
       _messages.add('← $message');
       _messagesController?.add('← $message');
@@ -236,7 +237,7 @@ class MeshGramPoCService {
   }
   
   /// Обробка оновлення передачі.
-  void _onPayloadTransferUpdate(String endpointId, PayloadTransferUpdate update) {
+  void _onPayloadTransferUpdate(String endpointId, nearby.PayloadTransferUpdate update) {
     // Можна показати прогрес передачі великих файлів
     print('📊 MeshGram PoC: Transfer update: ${update.status}');
   }

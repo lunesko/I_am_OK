@@ -1,32 +1,67 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class NotificationService {
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications = 
       FlutterLocalNotificationsPlugin();
+  bool _firebaseAvailable = false;
 
   // Callback для навігації при натисканні на сповіщення
   Function(RemoteMessage)? onNotificationTap;
 
   // Ініціалізація
   Future<void> initialize() async {
-    // Запит дозволу на push-повідомлення
-    NotificationSettings settings = await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('✅ Notifications permission granted');
-      
-      // Отримати токен
-      String? token = await _messaging.getToken();
-      print('📱 FCM Token: $token');
+    // Перевірити, чи Firebase доступний
+    try {
+      _messaging = FirebaseMessaging.instance;
+      _firebaseAvailable = true;
+    } catch (e) {
+      print('⚠️ Firebase Messaging недоступний: $e');
+      _firebaseAvailable = false;
     }
 
-    // Налаштування локальних сповіщень
+    // Якщо Firebase доступний - налаштувати FCM
+    if (_firebaseAvailable && _messaging != null) {
+      try {
+        // Запит дозволу на push-повідомлення
+        NotificationSettings settings = await _messaging!.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
+        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+          print('✅ Notifications permission granted');
+          
+          // Отримати токен
+          String? token = await _messaging!.getToken();
+          print('📱 FCM Token: $token');
+        }
+
+        // Обробка повідомлень у foreground
+        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+        
+        // Обробка повідомлень при натисканні (app opened from notification)
+        FirebaseMessaging.onMessageOpenedApp.listen((message) {
+          _handleMessageOpenedApp(message);
+        });
+
+        // Обробка повідомлень при запуску зі сповіщення
+        RemoteMessage? initialMessage = await _messaging!.getInitialMessage();
+        if (initialMessage != null) {
+          _handleMessageOpenedApp(initialMessage);
+        }
+      } catch (e) {
+        print('⚠️ Firebase Messaging помилка: $e');
+        _firebaseAvailable = false;
+      }
+    } else {
+      print('💡 Використовуються тільки локальні сповіщення');
+    }
+
+    // Налаштування локальних сповіщень (завжди доступні)
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -46,26 +81,15 @@ class NotificationService {
         print('🔔 Notification tapped: ${details.payload}');
       },
     );
-
-    // Обробка повідомлень у foreground
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    
-    // Обробка повідомлень при натисканні (app opened from notification)
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      _handleMessageOpenedApp(message);
-    });
-
-    // Обробка повідомлень при запуску зі сповіщення
-    RemoteMessage? initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) {
-      _handleMessageOpenedApp(initialMessage);
-    }
   }
 
   // Отримати FCM токен
   Future<String?> getToken() async {
+    if (!_firebaseAvailable || _messaging == null) {
+      return null;
+    }
     try {
-      return await _messaging.getToken();
+      return await _messaging!.getToken();
     } catch (e) {
       print('❌ Get token error: $e');
       return null;

@@ -2,7 +2,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/checkin_model.dart';
 import '../models/contact_model.dart';
-import 'firestore_service.dart';
 
 class LocalStorageService {
   static const String _checkinsBoxName = 'pending_checkins';
@@ -132,42 +131,11 @@ class LocalStorageService {
   // Синхронізація
   // ============================================================
 
-  // Синхронізувати всі чекіни при появі інтернету
-  Future<void> syncPendingCheckins(FirestoreService firestoreService) async {
-    final connectivity = await Connectivity().checkConnectivity();
-    
-    if (connectivity == ConnectivityResult.none) {
-      print('📡 No internet connection');
-      return;
-    }
-
-    final pending = getPendingCheckins();
-    if (pending.isEmpty) {
-      print('✅ No pending checkins to sync');
-      return;
-    }
-
-    print('🔄 Syncing ${pending.length} pending checkins...');
-
-    for (var checkin in pending) {
-      try {
-        await firestoreService.saveCheckin(checkin);
-        await markCheckinAsSynced(checkin.id);
-        print('✅ Synced checkin: ${checkin.id}');
-      } catch (e) {
-        print('❌ Sync error for ${checkin.id}: $e');
-      }
-    }
-  }
-
-  // Автоматична синхронізація при з'єднанні
-  void startAutoSync(FirestoreService firestoreService) {
-    Connectivity().onConnectivityChanged.listen((result) {
-      if (result != ConnectivityResult.none) {
-        print('📡 Internet connected, syncing...');
-        syncPendingCheckins(firestoreService);
-      }
-    });
+  // Синхронізація відключена (працюємо в офлайн-режимі)
+  // Чекіни зберігаються тільки локально
+  Future<void> syncPendingCheckins() async {
+    // В офлайн-режимі синхронізація не потрібна
+    print('💡 Offline mode: checkins stored locally only');
   }
 
   // Очистити всі дані

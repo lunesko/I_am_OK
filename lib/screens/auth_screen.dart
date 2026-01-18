@@ -23,21 +23,30 @@ class _AuthScreenState extends State<AuthScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       
       // Симуляція входу (в production - OAuth flow)
-      final credential = await authService.signInWithDiaID(
+      final success = await authService.signInWithDiaID(
         'user@example.com',
         'Користувач',
       );
       
-      if (credential != null && mounted) {
+      if (success && mounted) {
         // Перейти на екран біометрії
         Navigator.of(context).push(
           ScreenTransitions.slideFromRight(
             const BiometricScreen(),
           ),
         );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Помилка авторизації')),
+        );
       }
     } catch (e) {
       print('❌ Auth error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Помилка: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -52,21 +61,30 @@ class _AuthScreenState extends State<AuthScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       
       // Симуляція входу (в production - BankID API)
-      final credential = await authService.signInWithBankID(
+      final success = await authService.signInWithBankID(
         '+380501234567',
         'Користувач',
       );
       
-      if (credential != null && mounted) {
+      if (success && mounted) {
         // Перейти на екран біометрії
         Navigator.of(context).push(
           ScreenTransitions.slideFromRight(
             const BiometricScreen(),
           ),
         );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Помилка авторизації')),
+        );
       }
     } catch (e) {
       print('❌ BankID auth error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Помилка: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

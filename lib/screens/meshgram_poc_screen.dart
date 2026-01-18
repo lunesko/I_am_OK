@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_nearby_connections/flutter_nearby_connections.dart';
+// import 'package:flutter_nearby_connections/flutter_nearby_connections.dart'; // Тимчасово вимкнено
+import '../services/meshgram/nearby_connections_stub.dart' as nearby;
 import '../services/meshgram/meshgram_poc_service.dart';
 import '../theme/app_theme.dart';
 
@@ -15,7 +16,7 @@ class MeshGramPoCScreen extends StatefulWidget {
 class _MeshGramPoCScreenState extends State<MeshGramPoCScreen> {
   final MeshGramPoCService _service = MeshGramPoCService();
   final TextEditingController _messageController = TextEditingController();
-  List<Device> _devices = [];
+  List<nearby.Device> _devices = [];
   List<String> _messages = [];
   
   @override
@@ -85,7 +86,7 @@ class _MeshGramPoCScreenState extends State<MeshGramPoCScreen> {
     }
   }
   
-  Future<void> _connectToDevice(Device device) async {
+  Future<void> _connectToDevice(nearby.Device device) async {
     try {
       await _service.connectToDevice(device);
     } catch (e) {
@@ -201,7 +202,7 @@ class _MeshGramPoCScreenState extends State<MeshGramPoCScreen> {
         Expanded(
           child: ElevatedButton.icon(
             onPressed: _service.isAdvertising ? null : _startAdvertising,
-            icon: const Icon(Icons.broadcast),
+            icon: const Icon(Icons.cast),
             label: const Text('Реклама'),
             style: ElevatedButton.styleFrom(
               backgroundColor: _service.isAdvertising ? Colors.grey : Colors.blue,
@@ -255,8 +256,8 @@ class _MeshGramPoCScreenState extends State<MeshGramPoCScreen> {
     );
   }
   
-  Widget _buildDeviceItem(Device device) {
-    final isConnected = device.state == SessionState.connected;
+  Widget _buildDeviceItem(nearby.Device device) {
+    final isConnected = device.state == nearby.SessionState.connected;
     
     return ListTile(
       leading: Icon(
@@ -285,7 +286,7 @@ class _MeshGramPoCScreenState extends State<MeshGramPoCScreen> {
   
   Widget _buildMessageInput() {
     final connectedDevices = _devices.where(
-      (d) => d.state == SessionState.connected,
+      (d) => d.state == nearby.SessionState.connected,
     ).toList();
     
     if (connectedDevices.isEmpty) {
@@ -379,7 +380,7 @@ class _MeshGramPoCScreenState extends State<MeshGramPoCScreen> {
                   child: Row(
                     children: [
                       Icon(
-                        msg.startsWith('→') ? Icons.send : Icons.receive,
+                        msg.startsWith('→') ? Icons.send : Icons.download,
                         size: 16,
                         color: msg.startsWith('→') ? Colors.blue : Colors.green,
                       ),

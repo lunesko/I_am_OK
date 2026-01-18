@@ -49,18 +49,21 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadUserData() async {
     final authService = Provider.of<AuthService>(context, listen: false);
-    final userId = authService.currentUser?.uid;
+    final userId = authService.userId;
     
     if (userId == null) return;
 
     try {
-      final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-      
       // Завантажити профіль користувача
       final user = await authService.getUserProfile();
       
-      // Завантажити останній чекін
-      final lastCheckin = await firestoreService.getLastCheckin(userId);
+      // Завантажити останній чекін з локального сховища
+      final localStorage = Provider.of<LocalStorageService>(context, listen: false);
+      final allCheckins = localStorage.getAllCheckins();
+      final userCheckins = allCheckins.where((c) => c.userId == userId).toList();
+      final lastCheckin = userCheckins.isNotEmpty 
+          ? userCheckins.reduce((a, b) => a.timestamp.isAfter(b.timestamp) ? a : b)
+          : null;
       
       if (mounted) {
         setState(() {
@@ -85,7 +88,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     final authService = Provider.of<AuthService>(context, listen: false);
-    final userId = authService.currentUser?.uid;
+    final userId = authService.userId;
     final user = _user;
     
     if (userId == null || user == null) {

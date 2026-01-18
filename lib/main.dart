@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-// Firebase options (створюється через flutterfire configure)
-import 'firebase_options.dart';
 
 // Services
 import 'services/auth_service.dart';
@@ -24,38 +20,22 @@ import 'theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Firebase ініціалізація (опціонально)
-  // УВАГА: Для повної роботи потрібно налаштувати firebase_options.dart
-  bool firebaseInitialized = false;
-  try {
-    final options = DefaultFirebaseOptions.currentPlatform;
-    // Перевіряємо, чи не placeholder значення
-    if (options.apiKey != 'YOUR_ANDROID_API_KEY' && 
-        options.appId != 'YOUR_ANDROID_APP_ID') {
-      await Firebase.initializeApp(options: options);
-      firebaseInitialized = true;
-      print('✅ Firebase ініціалізовано');
-    } else {
-      print('⚠️ Firebase не налаштовано (використовуються placeholder значення)');
-      print('💡 Додаток працюватиме в офлайн-режимі');
-    }
-  } catch (e) {
-    print('⚠️ Firebase помилка: $e');
-    print('💡 Додаток працюватиме в офлайн-режимі');
-  }
-    
   // Local Storage
   final localStorage = LocalStorageService();
   await localStorage.initialize();
   
-  // Notifications
+  // Notifications (працює без Firebase)
   final notificationService = NotificationService();
   await notificationService.initialize();
+  
+  // Auth Service (локальна система без Firebase)
+  final authService = AuthService();
+  authService.initialize(localStorage);
   
   runApp(
     MultiProvider(
       providers: [
-        Provider<AuthService>(create: (_) => AuthService()),
+        Provider<AuthService>(create: (_) => authService),
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider<NotificationService>(create: (_) => notificationService),
         Provider<LocalStorageService>(create: (_) => localStorage),
@@ -66,7 +46,7 @@ void main() async {
             meshGramTransport: MeshGramTransport(),
           );
         }),
-        Provider<bool>.value(value: firebaseInitialized), // Для перевірки в UI
+        Provider<bool>.value(value: false), // Firebase відключено
       ],
       child: const YaOkApp(),
     ),
@@ -86,7 +66,7 @@ class YaOkApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: StreamBuilder<User?>(
+      home: StreamBuilder<LocalUser?>(
         stream: authService.authStateChanges,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -109,5 +89,3 @@ class YaOkApp extends StatelessWidget {
     );
   }
 }
-
-
