@@ -91,9 +91,9 @@ dependencies:
 
 ## 📧 Контакти
 
-- **Email підтримки**: support@poruch.app
-- **Email з питань конфіденційності**: privacy@poruch.app
-- **Веб-сайт**: https://poruch.app
+- **Email**: poruch.app@gmail.com
+- **GitHub**: https://github.com/lunesko
+- **Google Play Console**: Poruch_WEB_Studio
 
 ## 📄 Ліцензія
 
