@@ -1,0 +1,17 @@
+app = "i-am-ok-relay"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  RELAY_PORT = "40000"
+  MAX_PACKET_SIZE = "65507"
+  RATE_LIMIT_PPS = "100"
+  PEER_TTL_SECS = "300"
+
+[[services]]
+  internal_port = 40000
+  protocol = "udp"
+  [[services.ports]]
+    port = 40000
+    handlers = ["udp"]

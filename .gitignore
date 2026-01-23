@@ -27,6 +27,7 @@ migrate_working_dir/
 .pub/
 /build/
 ya_ok_core/target/
+relay/target/
 
 # Symbolication related
 app.*.symbols
