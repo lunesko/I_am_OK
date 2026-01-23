@@ -26,6 +26,12 @@ pub struct Packet {
     pub message_id: String,
     /// ID отправителя
     pub sender_id: String,
+    /// Публичный ключ отправителя (Ed25519) для верификации подписи
+    #[serde(default)]
+    pub sender_public_key: Vec<u8>,
+    /// Публичный ключ отправителя (X25519) для обмена ключами
+    #[serde(default)]
+    pub sender_x25519_public_key: Vec<u8>,
     /// Временная метка создания
     pub timestamp: DateTime<Utc>,
     /// TTL (время жизни в секундах)
@@ -84,6 +90,11 @@ impl Packet {
         let mut packet = Self {
             message_id: message.id.clone(),
             sender_id: message.sender_id.clone(),
+            sender_public_key: sender_identity.public_key_bytes().to_vec(),
+            sender_x25519_public_key: sender_identity
+                .x25519_public_bytes()
+                .map(|key| key.to_vec())
+                .unwrap_or_default(),
             timestamp: message.timestamp,
             ttl: 3600, // 1 час по умолчанию
             hops: 0,
@@ -105,29 +116,38 @@ impl Packet {
     pub fn decrypt(
         &self,
         receiver_identity: &crate::core::Identity,
-        sender_public_key: &[u8],
     ) -> Result<Message, PacketError> {
-        // Верифицируем подпись
-        let packet_data = self.get_signing_data()?;
-        let signature = ed25519_dalek::Signature::from_bytes(
-            self.signature.as_slice().try_into()
-                .map_err(|_| PacketError::InvalidSignature)?
-        )?;
-        receiver_identity.verify(&packet_data, &signature)?;
-
-        // Конвертируем публичный ключ отправителя
-        let mut sender_key_bytes = [0u8; 32];
-        if sender_public_key.len() != 32 {
+        // Восстанавливаем identity отправителя из публичного ключа
+        if self.sender_public_key.len() != 32 {
             return Err(PacketError::InvalidSenderKey);
         }
-        sender_key_bytes.copy_from_slice(sender_public_key);
-        let sender_public = x25519_dalek::PublicKey::from(sender_key_bytes);
+        let mut sender_key_bytes = [0u8; 32];
+        sender_key_bytes.copy_from_slice(&self.sender_public_key);
+        let sender_public = ed25519_dalek::VerifyingKey::from_bytes(&sender_key_bytes)
+            .map_err(|_| PacketError::InvalidSenderKey)?;
+        let sender_identity = crate::core::Identity::from_public_key(sender_public);
+
+        // Верифицируем подпись отправителя
+        let packet_data = self.get_signing_data()?;
+        let signature_bytes: [u8; 64] = self.signature.as_slice().try_into()
+            .map_err(|_| PacketError::InvalidSignature)?;
+        let signature = ed25519_dalek::Signature::from_bytes(&signature_bytes);
+        sender_identity.verify(&packet_data, &signature)?;
+
+        // Используем ephemeral публичный ключ отправителя из encrypted_payload
+        let sender_key_bytes: [u8; 32] = self.encrypted_payload.sender_public_key.as_slice()
+            .try_into()
+            .map_err(|_| PacketError::InvalidSenderKey)?;
+        let sender_ephemeral_public = x25519_dalek::PublicKey::from(sender_key_bytes);
+
+        // Используем сохраненный X25519 приватный ключ получателя
+        let receiver_private = receiver_identity.x25519_secret()
+            .ok_or(PacketError::CryptoError(crate::core::CryptoError::InvalidKey))?;
 
         // Расшифровываем payload
-        let (receiver_private, _) = Crypto::generate_ephemeral_keypair(); // TODO: использовать сохраненный ключ
         let decrypted_bytes = Crypto::decrypt_payload(
-            &receiver_private,
-            &sender_public,
+            receiver_private,
+            &sender_ephemeral_public,
             &self.encrypted_payload,
         )?;
 

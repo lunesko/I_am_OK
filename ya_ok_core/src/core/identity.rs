@@ -4,28 +4,49 @@
 //! Идентичность создается один раз и хранится локально.
 
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
+use x25519_dalek::{StaticSecret, PublicKey as X25519PublicKey};
 use rand::rngs::OsRng;
-use serde::{Deserialize, Serialize};
+use rand::RngCore;
 use std::fmt;
 
 /// Уникальная идентичность пользователя
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct Identity {
     /// Публичный ключ для верификации (Ed25519)
     pub public_key: VerifyingKey,
     /// Приватный ключ для подписи (хранится в зашифрованном виде)
-    #[serde(skip_serializing)]
     signing_key: Option<SigningKey>,
+    /// X25519 приватный ключ для ECDH (для шифрования)
+    pub(crate) x25519_secret: Option<StaticSecret>,
+    /// X25519 публичный ключ для ECDH
+    pub(crate) x25519_public: Option<X25519PublicKey>,
     /// Открытый идентификатор (hash от публичного ключа)
     pub id: String,
+}
+
+impl std::fmt::Debug for Identity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Identity")
+            .field("public_key", &"<hidden>")
+            .field("id", &self.id)
+            .field("has_signing_key", &self.signing_key.is_some())
+            .field("has_x25519_secret", &self.x25519_secret.is_some())
+            .finish()
+    }
 }
 
 impl Identity {
     /// Создать новую идентичность
     pub fn new() -> Self {
         let mut rng = OsRng;
-        let signing_key = SigningKey::generate(&mut rng);
+        let mut secret_key = [0u8; 32];
+        rng.fill_bytes(&mut secret_key);
+        let signing_key = SigningKey::from_bytes(&secret_key);
         let public_key = signing_key.verifying_key();
+
+        // Генерируем X25519 ключи для ECDH
+        let x25519_secret = StaticSecret::random_from_rng(OsRng);
+        let x25519_public = X25519PublicKey::from(&x25519_secret);
 
         // Создаем ID как hex от публичного ключа
         let id = hex::encode(public_key.to_bytes());
@@ -33,6 +54,26 @@ impl Identity {
         Self {
             public_key,
             signing_key: Some(signing_key),
+            x25519_secret: Some(x25519_secret),
+            x25519_public: Some(x25519_public),
+            id,
+        }
+    }
+
+    /// Создать идентичность из приватного ключа (для восстановления)
+    pub fn from_signing_key(signing_key: SigningKey) -> Self {
+        let public_key = signing_key.verifying_key();
+        let id = hex::encode(public_key.to_bytes());
+        
+        // Генерируем X25519 ключи для ECDH
+        let x25519_secret = StaticSecret::random_from_rng(OsRng);
+        let x25519_public = X25519PublicKey::from(&x25519_secret);
+        
+        Self {
+            public_key,
+            signing_key: Some(signing_key),
+            x25519_secret: Some(x25519_secret),
+            x25519_public: Some(x25519_public),
             id,
         }
     }
@@ -44,6 +85,8 @@ impl Identity {
         Self {
             public_key,
             signing_key: None,
+            x25519_secret: None,
+            x25519_public: None,
             id,
         }
     }
@@ -66,6 +109,32 @@ impl Identity {
     /// Получить публичный ключ как байты
     pub fn public_key_bytes(&self) -> [u8; 32] {
         self.public_key.to_bytes()
+    }
+
+    /// Получить приватный ключ (если доступен)
+    pub fn signing_key_bytes(&self) -> Option<[u8; 32]> {
+        self.signing_key.as_ref().map(|key| key.to_bytes())
+    }
+
+    /// Получить X25519 приватный ключ для ECDH
+    pub fn x25519_secret(&self) -> Option<&StaticSecret> {
+        self.x25519_secret.as_ref()
+    }
+
+    /// Получить X25519 публичный ключ для ECDH
+    pub fn x25519_public(&self) -> Option<&X25519PublicKey> {
+        self.x25519_public.as_ref()
+    }
+
+    /// Получить X25519 публичный ключ как байты
+    pub fn x25519_public_bytes(&self) -> Option<[u8; 32]> {
+        self.x25519_public.as_ref().map(|key| key.to_bytes())
+    }
+
+    /// Установить X25519 ключи (для восстановления из хранилища)
+    pub fn set_x25519_keys(&mut self, secret: StaticSecret, public: X25519PublicKey) {
+        self.x25519_secret = Some(secret);
+        self.x25519_public = Some(public);
     }
 
     /// Восстановить из байтов (для загрузки из хранилища)

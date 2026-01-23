@@ -4,8 +4,8 @@
 //! - X25519 для обмена ключами
 //! - AES-GCM для шифрования payload
 
-use aes_gcm::{Aes256Gcm, Key, Nonce};
-use aes_gcm::aead::{Aead, NewAead};
+use aes_gcm::{Aes256Gcm, Nonce};
+use aes_gcm::aead::{Aead, KeyInit};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -37,7 +37,7 @@ pub struct Crypto;
 impl Crypto {
     /// Генерировать новый X25519 ключ для ECDH
     pub fn generate_ephemeral_keypair() -> (StaticSecret, PublicKey) {
-        let secret = StaticSecret::new(OsRng);
+        let secret = StaticSecret::random_from_rng(OsRng);
         let public = PublicKey::from(&secret);
         (secret, public)
     }
@@ -55,7 +55,8 @@ impl Crypto {
         key: &SymmetricKey,
         plaintext: &[u8],
     ) -> Result<SymmetricEncryption, CryptoError> {
-        let cipher = Aes256Gcm::new(Key::from_slice(key));
+        let cipher = Aes256Gcm::new_from_slice(key)
+            .map_err(|_| CryptoError::InvalidKey)?;
         let mut nonce_bytes = [0u8; 12];
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -76,7 +77,8 @@ impl Crypto {
         ciphertext: &[u8],
         nonce: &[u8; 12],
     ) -> Result<Vec<u8>, CryptoError> {
-        let cipher = Aes256Gcm::new(Key::from_slice(key));
+        let cipher = Aes256Gcm::new_from_slice(key)
+            .map_err(|_| CryptoError::InvalidKey)?;
         let nonce = Nonce::from_slice(nonce);
 
         cipher
@@ -124,6 +126,8 @@ impl Crypto {
 /// Ошибки криптографии
 #[derive(Debug, thiserror::Error)]
 pub enum CryptoError {
+    #[error("Invalid key")]
+    InvalidKey,
     #[error("Encryption failed")]
     EncryptionFailed,
 

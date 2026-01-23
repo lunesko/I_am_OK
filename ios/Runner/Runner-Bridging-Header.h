@@ -1,1 +1,1 @@
-#import "GeneratedPluginRegistrant.h"
+// Bridging header for optional C imports.

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я ОК - Експорт всіх іконок та елементів</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #1a1a1a;
+            padding: 40px 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #0057B7, #34C759);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .category {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .category h2 {
+            font-size: 32px;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .icons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .icon-card {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        
+        .icon-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .icon-preview {
+            background: #F5F5F7;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .icon-preview.dark {
+            background: #000000;
+        }
+        
+        .icon-emoji {
+            font-size: 48px;
+        }
+        
+        .icon-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: white;
+        }
+        
+        .icon-code {
+            font-size: 12px;
+            color: #999;
+            font-family: monospace;
+            margin-bottom: 10px;
+        }
+        
+        .download-icon-btn {
+            background: #34C759;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        .controls {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn.secondary {
+            background: #34C759;
+        }
+        
+        .status {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .status.show {
+            display: block;
+        }
+        
+        .status.success {
+            border-left: 4px solid #34C759;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Я ОК — Експорт іконок та елементів</h1>
+            <p>Генерація всіх іконок та UI елементів проекту</p>
+        </div>
+
+        <div class="controls">
+            <div class="button-group">
+                <button class="btn" onclick="downloadAllIcons()">📥 Завантажити всі іконки</button>
+                <button class="btn secondary" onclick="downloadAllAsZip()">📦 Завантажити як ZIP</button>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
+
+        <!-- Status Icons -->
+        <div class="category">
+            <h2>💚 Status Icons</h2>
+            <div class="icons-grid" id="statusIcons"></div>
+        </div>
+
+        <!-- Navigation Icons -->
+        <div class="category">
+            <h2>🧭 Navigation Icons</h2>
+            <div class="icons-grid" id="navigationIcons"></div>
+        </div>
+
+        <!-- Action Icons -->
+        <div class="category">
+            <h2>⚡ Action Icons</h2>
+            <div class="icons-grid" id="actionIcons"></div>
+        </div>
+
+        <!-- System Icons -->
+        <div class="category">
+            <h2>🔧 System Icons</h2>
+            <div class="icons-grid" id="systemIcons"></div>
+        </div>
+
+        <!-- UI Elements -->
+        <div class="category">
+            <h2>🎨 UI Elements</h2>
+            <div class="icons-grid" id="uiElements"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        // Всі іконки проекту
+        const icons = {
+            status: [
+                { emoji: '💚', name: 'Я ОК', code: 'ok', color: '#34C759' },
+                { emoji: '💛', name: 'Зайнятий', code: 'busy', color: '#FFCC00' },
+                { emoji: '💙', name: 'Пізніше', code: 'later', color: '#4A90E2' },
+                { emoji: '🤍', name: 'Обійми', code: 'hug', color: '#FFFFFF' },
+            ],
+            navigation: [
+                { emoji: '👥', name: 'Family', code: 'family', color: '#0057B7' },
+                { emoji: '⚙️', name: 'Settings', code: 'settings', color: '#8E8E93' },
+                { emoji: '🔔', name: 'Notifications', code: 'notifications', color: '#FF9500' },
+                { emoji: '←', name: 'Back', code: 'back', color: '#3C3C43' },
+                { emoji: '✕', name: 'Close', code: 'close', color: '#8E8E93' },
+            ],
+            action: [
+                { emoji: '✓', name: 'Check', code: 'check', color: '#34C759' },
+                { emoji: '⏱', name: 'Pending', code: 'pending', color: '#8E8E93' },
+                { emoji: '+', name: 'Add', code: 'add', color: '#0057B7' },
+                { emoji: '→', name: 'Next', code: 'next', color: '#0057B7' },
+            ],
+            system: [
+                { emoji: '🛡️', name: 'Security', code: 'security', color: '#FF9500' },
+                { emoji: '📡', name: 'Internet', code: 'internet', color: '#FF9500' },
+                { emoji: '⚠️', name: 'Warning', code: 'warning', color: '#FF9500' },
+                { emoji: '👥', name: 'Contacts', code: 'contacts', color: '#0057B7' },
+                { emoji: '🔒', name: 'Lock', code: 'lock', color: '#34C759' },
+                { emoji: '⚡', name: 'Offline', code: 'offline', color: '#FFD700' },
+                { emoji: '👆', name: 'Biometric', code: 'biometric', color: '#0057B7' },
+            ],
+            ui: [
+                { emoji: '🔔', name: 'Empty Notifications', code: 'empty-notifications', color: '#8E8E93' },
+                { emoji: '💚', name: 'Logo', code: 'logo', color: '#0057B7' },
+            ],
+        };
+
+        function showStatus(message) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status show success';
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+
+        function createIconCard(icon, category) {
+            const card = document.createElement('div');
+            card.className = 'icon-card';
+            
+            card.innerHTML = `
+                <div class="icon-preview" data-emoji="${icon.emoji}" data-color="${icon.color}">
+                    <div class="icon-emoji">${icon.emoji}</div>
+                </div>
+                <div class="icon-name">${icon.name}</div>
+                <div class="icon-code">${icon.code}</div>
+                <button class="download-icon-btn" onclick="downloadIcon('${icon.code}', '${icon.emoji}', '${category}')">
+                    📥 Завантажити
+                </button>
+            `;
+            
+            return card;
+        }
+
+        function renderIcons() {
+            // Status Icons
+            const statusGrid = document.getElementById('statusIcons');
+            icons.status.forEach(icon => {
+                statusGrid.appendChild(createIconCard(icon, 'status'));
+            });
+
+            // Navigation Icons
+            const navGrid = document.getElementById('navigationIcons');
+            icons.navigation.forEach(icon => {
+                navGrid.appendChild(createIconCard(icon, 'navigation'));
+            });
+
+            // Action Icons
+            const actionGrid = document.getElementById('actionIcons');
+            icons.action.forEach(icon => {
+                actionGrid.appendChild(createIconCard(icon, 'action'));
+            });
+
+            // System Icons
+            const systemGrid = document.getElementById('systemIcons');
+            icons.system.forEach(icon => {
+                systemGrid.appendChild(createIconCard(icon, 'system'));
+            });
+
+            // UI Elements
+            const uiGrid = document.getElementById('uiElements');
+            icons.ui.forEach(icon => {
+                uiGrid.appendChild(createIconCard(icon, 'ui'));
+            });
+        }
+
+        function drawIcon(canvas, emoji, size, backgroundColor = '#F5F5F7') {
+            const ctx = canvas.getContext('2d');
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Фон
+            ctx.fillStyle = backgroundColor;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Емоджі
+            ctx.font = `${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, size / 2, size / 2);
+        }
+
+        function downloadIcon(code, emoji, category) {
+            const sizes = [64, 128, 256, 512];
+            
+            sizes.forEach(size => {
+                const canvas = document.createElement('canvas');
+                drawIcon(canvas, emoji, size);
+                
+                canvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `icon-${category}-${code}-${size}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            });
+            
+            showStatus(`✅ Завантажено: ${code} (4 розміри)`);
+        }
+
+        async function downloadAllIcons() {
+            let count = 0;
+            const allIcons = [
+                ...icons.status.map(i => ({...i, category: 'status'})),
+                ...icons.navigation.map(i => ({...i, category: 'navigation'})),
+                ...icons.action.map(i => ({...i, category: 'action'})),
+                ...icons.system.map(i => ({...i, category: 'system'})),
+                ...icons.ui.map(i => ({...i, category: 'ui'})),
+            ];
+            
+            const sizes = [64, 128, 256, 512];
+            const total = allIcons.length * sizes.length;
+            
+            function downloadNext() {
+                if (count >= total) {
+                    showStatus(`✅ Всі ${total} файлів завантажено!`);
+                    return;
+                }
+                
+                const iconIndex = Math.floor(count / sizes.length);
+                const sizeIndex = count % sizes.length;
+                const icon = allIcons[iconIndex];
+                const size = sizes[sizeIndex];
+                
+                setTimeout(() => {
+                    const canvas = document.createElement('canvas');
+                    drawIcon(canvas, icon.emoji, size);
+                    
+                    canvas.toBlob(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `icon-${icon.category}-${icon.code}-${size}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        count++;
+                        downloadNext();
+                    });
+                }, 200);
+            }
+            
+            downloadNext();
+        }
+
+        async function downloadAllAsZip() {
+            if (typeof JSZip === 'undefined') {
+                showStatus('❌ JSZip не завантажено. Використай "Завантажити всі іконки"');
+                return;
+            }
+            
+            const zip = new JSZip();
+            const allIcons = [
+                ...icons.status.map(i => ({...i, category: 'status'})),
+                ...icons.navigation.map(i => ({...i, category: 'navigation'})),
+                ...icons.action.map(i => ({...i, category: 'action'})),
+                ...icons.system.map(i => ({...i, category: 'system'})),
+                ...icons.ui.map(i => ({...i, category: 'ui'})),
+            ];
+            
+            const sizes = [64, 128, 256, 512];
+            let processed = 0;
+            const total = allIcons.length * sizes.length;
+            
+            showStatus('📦 Створюється ZIP архів...');
+            
+            for (const icon of allIcons) {
+                for (const size of sizes) {
+                    const canvas = document.createElement('canvas');
+                    drawIcon(canvas, icon.emoji, size);
+                    
+                    const blob = await new Promise(resolve => {
+                        canvas.toBlob(resolve);
+                    });
+                    
+                    const path = `${icon.category}/${icon.code}/icon-${icon.code}-${size}.png`;
+                    zip.file(path, blob);
+                    
+                    processed++;
+                    if (processed % 10 === 0) {
+                        showStatus(`📦 Оброблено ${processed}/${total}...`);
+                    }
+                }
+            }
+            
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ya-ok-icons.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus(`✅ ZIP архів завантажено! (${total} файлів)`);
+        }
+
+        // Автоматично відрендерити при завантаженні
+        window.addEventListener('load', renderIcons);
+    </script>
+</body>
+</html>

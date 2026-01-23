@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я ОК - Центральний хаб для експорту</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            padding: 40px 20px;
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .header h1 {
+            font-size: 64px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #0057B7, #34C759);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            font-size: 20px;
+            color: #999;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        
+        .tool-card {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 40px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 87, 183, 0.3);
+            border-color: #0057B7;
+        }
+        
+        .tool-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .tool-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: white;
+        }
+        
+        .tool-description {
+            font-size: 16px;
+            color: #999;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+        
+        .tool-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            background: #1a1a1a;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .stat-number {
+            color: #34C759;
+            font-weight: 700;
+        }
+        
+        .tool-btn {
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s;
+        }
+        
+        .tool-btn:hover {
+            transform: scale(1.02);
+        }
+        
+        .tool-btn.secondary {
+            background: #34C759;
+        }
+        
+        .info-section {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .info-section h2 {
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+        
+        .info-section ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .info-section li {
+            padding: 12px 0;
+            border-bottom: 1px solid #38383A;
+            font-size: 16px;
+        }
+        
+        .info-section li:last-child {
+            border-bottom: none;
+        }
+        
+        .info-section li:before {
+            content: "✅ ";
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Я ОК — Центральний хаб</h1>
+            <p>Експорт всіх асетів проекту</p>
+        </div>
+
+        <div class="tools-grid">
+            <!-- Logo Export -->
+            <div class="tool-card">
+                <div class="tool-icon">🎨</div>
+                <div class="tool-title">Логотипи</div>
+                <div class="tool-description">
+                    Експорт App Icon, Notification badge та Favicon у всіх розмірах для iOS, Android та Web.
+                </div>
+                <div class="tool-stats">
+                    <div class="stat">
+                        <span class="stat-number">19</span> файлів
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">3</span> категорії
+                    </div>
+                </div>
+                <button class="tool-btn" onclick="window.open('logo-export-tool.html', '_blank')">
+                    📥 Відкрити експорт логотипів
+                </button>
+            </div>
+
+            <!-- Icons Export -->
+            <div class="tool-card">
+                <div class="tool-icon">🔧</div>
+                <div class="tool-title">Іконки</div>
+                <div class="tool-description">
+                    Експорт всіх емоджі іконок проекту: Status, Navigation, Action, System та UI елементи.
+                </div>
+                <div class="tool-stats">
+                    <div class="stat">
+                        <span class="stat-number">88</span> файлів
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">22</span> іконки
+                    </div>
+                </div>
+                <button class="tool-btn secondary" onclick="window.open('icons-export-tool.html', '_blank')">
+                    📥 Відкрити експорт іконок
+                </button>
+            </div>
+
+            <!-- UI Elements Export -->
+            <div class="tool-card">
+                <div class="tool-icon">🎨</div>
+                <div class="tool-title">UI Елементи</div>
+                <div class="tool-description">
+                    Експорт UI компонентів: Status Cards, Buttons, Cards та Inputs для дизайн-системи.
+                </div>
+                <div class="tool-stats">
+                    <div class="stat">
+                        <span class="stat-number">12</span> файлів
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">4</span> типи
+                    </div>
+                </div>
+                <button class="tool-btn" onclick="window.open('ui-elements-export-tool.html', '_blank')">
+                    📥 Відкрити експорт UI
+                </button>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <h2>📋 Що експортується:</h2>
+            <ul>
+                <li><strong>Логотипи:</strong> App Icon (13 розмірів), Notification (4 розміри), Favicon (2 розміри)</li>
+                <li><strong>Іконки:</strong> Status (4), Navigation (5), Action (4), System (7), UI (2)</li>
+                <li><strong>UI Елементи:</strong> Status Cards (4), Buttons (3), Cards (3), Inputs (2)</li>
+                <li><strong>Формат:</strong> PNG у всіх потрібних розмірах</li>
+                <li><strong>Всього:</strong> ~119 файлів для повного експорту</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h2>🚀 Швидкий старт:</h2>
+            <ul>
+                <li>1. Відкрий потрібний інструмент вище</li>
+                <li>2. Натисни "Завантажити всі" для автоматичного експорту</li>
+                <li>3. Організуй файли у папки (див. EXPORT_ALL_ASSETS_GUIDE.md)</li>
+                <li>4. Додай у Flutter проект через pubspec.yaml</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

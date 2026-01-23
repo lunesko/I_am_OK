@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Я ОК</string>
+    <string name="app_title">Я ОК</string>
+    <string name="app_subtitle">Один дотик — спокій для близьких</string>
+    <string name="onboarding_primary">Створити ідентичність</string>
+    <string name="onboarding_secondary">Відновити з ключа</string>
+    <string name="onboarding_footer">Без реєстрації. Без геолокації. Безпечно.</string>
+    <string name="status_ok">Я ОК</string>
+    <string name="status_busy">Все нормально, зайнятий</string>
+    <string name="status_later">Зателефоную пізніше</string>
+    <string name="status_hug">Обійми</string>
+    <string name="send_button">Відправити</string>
+    <string name="last_checkin_format">🕐 Останній раз: %s</string>
+    <string name="warning_no_geo">Геолокація вимкнена. Не використовуй біля позицій.</string>
+    <string name="text_hint">Короткий текст (до 256 символів)</string>
+    <string name="voice_record">Запис голосу</string>
+    <string name="voice_ready">Голос записано</string>
+    <string name="family_title">Мої люди</string>
+    <string name="add_person">Додати людину</string>
+    <string name="feedback_title">Зворотній зв’язок</string>
+    <string name="feedback_desc">Твої близькі теж можуть надіслати тобі швидке повідомлення</string>
+    <string name="feedback_button">Надіслати &quot;Вдома все добре&quot;</string>
+    <string name="settings_title">Налаштування</string>
+    <string name="reminder_title">Нагадувати мені</string>
+    <string name="reminder_summary">Кожен день о %s</string>
+    <string name="warn_title">Попередити близьких</string>
+    <string name="warn_summary">%d дні без зв’язку</string>
+    <string name="quiet_title">Тихий режим</string>
+    <string name="quiet_summary">Без звуку вночі</string>
+    <string name="theme_title">Темна тема</string>
+    <string name="support_title">Підтримати проєкт</string>
+    <string name="support_desc">Я ОК — безкоштовний для військових та їх родин</string>
+    <string name="support_button">Задонатити на ЗСУ</string>
+    <string name="identity_label">Ідентичність: %s</string>
+    <string name="inbox_title">Вхідні</string>
+    <string name="inbox_empty">Поки немає повідомлень</string>
+</resources>

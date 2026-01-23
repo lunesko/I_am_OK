@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я ОК - Експорт UI елементів</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #1a1a1a;
+            padding: 40px 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #0057B7, #34C759);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .category {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .category h2 {
+            font-size: 32px;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .elements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .element-card {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .element-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: white;
+        }
+        
+        .element-preview {
+            background: #F5F5F7;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .element-preview.dark {
+            background: #000000;
+        }
+        
+        .element-preview canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .download-btn {
+            background: #34C759;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+            transition: transform 0.2s;
+        }
+        
+        .download-btn:hover {
+            transform: scale(1.02);
+        }
+        
+        .controls {
+            background: #2a2a2a;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #0057B7, #4A90E2);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn.secondary {
+            background: #34C759;
+        }
+        
+        .status {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .status.show {
+            display: block;
+        }
+        
+        .status.success {
+            border-left: 4px solid #34C759;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Я ОК — Експорт UI елементів</h1>
+            <p>Генерація всіх UI компонентів проекту</p>
+        </div>
+
+        <div class="controls">
+            <div class="button-group">
+                <button class="btn" onclick="downloadAllElements()">📥 Завантажити всі елементи</button>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="category">
+            <h2>💚 Status Cards</h2>
+            <div class="elements-grid" id="statusCards"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="category">
+            <h2>🔘 Buttons</h2>
+            <div class="elements-grid" id="buttons"></div>
+        </div>
+
+        <!-- Cards -->
+        <div class="category">
+            <h2>📄 Cards</h2>
+            <div class="elements-grid" id="cards"></div>
+        </div>
+
+        <!-- Inputs -->
+        <div class="category">
+            <h2>📝 Inputs</h2>
+            <div class="elements-grid" id="inputs"></div>
+        </div>
+    </div>
+
+    <script>
+        const elements = {
+            statusCards: [
+                { name: 'Status OK', status: 'ok', emoji: '💚' },
+                { name: 'Status Busy', status: 'busy', emoji: '💛' },
+                { name: 'Status Later', status: 'later', emoji: '💙' },
+                { name: 'Status Hug', status: 'hug', emoji: '🤍' },
+            ],
+            buttons: [
+                { name: 'Primary Button', type: 'primary', text: 'Відправити' },
+                { name: 'Success Button', type: 'success', text: 'Відправити' },
+                { name: 'Secondary Button', type: 'secondary', text: 'Скасувати' },
+                { name: 'Big Button', type: 'big', text: 'Відправити' },
+            ],
+            cards: [
+                { name: 'Contact Card', type: 'contact' },
+                { name: 'Notification Card', type: 'notification' },
+                { name: 'Gradient Card', type: 'gradient' },
+            ],
+            inputs: [
+                { name: 'Text Input', type: 'text', placeholder: 'Введіть текст' },
+                { name: 'Search Input', type: 'search', placeholder: 'Пошук' },
+            ],
+        };
+
+        function showStatus(message) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status show success';
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                ok: 'Я ОК',
+                busy: 'Все нормально, зайнятий',
+                later: 'Зателефоную пізніше',
+                hug: 'Обійми',
+            };
+            return texts[status] || 'Я ОК';
+        }
+
+        // Polyfill для roundRect
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                this.beginPath();
+                this.moveTo(x + r, y);
+                this.lineTo(x + w - r, y);
+                this.quadraticCurveTo(x + w, y, x + w, y + r);
+                this.lineTo(x + w, y + h - r);
+                this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                this.lineTo(x + r, y + h);
+                this.quadraticCurveTo(x, y + h, x, y + h - r);
+                this.lineTo(x, y + r);
+                this.quadraticCurveTo(x, y, x + r, y);
+                this.closePath();
+            };
+        }
+
+        function drawStatusCard(canvas, status, emoji) {
+            const ctx = canvas.getContext('2d');
+            const width = 375;
+            const height = 80;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Фон
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, 20);
+            ctx.fill();
+            
+            // Border для selected
+            if (status === 'ok') {
+                ctx.strokeStyle = '#0057B7';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(0, 0, width, height, 20);
+                ctx.stroke();
+            }
+            
+            // Емоджі
+            ctx.font = '28px Arial';
+            ctx.fillText(emoji, 20, 45);
+            
+            // Текст
+            ctx.fillStyle = '#000000';
+            ctx.font = '17px Arial';
+            ctx.fillText(getStatusText(status), 60, 45);
+            
+            // Check icon (якщо selected)
+            if (status === 'ok') {
+                ctx.fillStyle = '#0057B7';
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText('✓', width - 20, 45);
+            }
+        }
+
+        function drawButton(canvas, type, text) {
+            const ctx = canvas.getContext('2d');
+            let width, height, borderRadius;
+            
+            if (type === 'big') {
+                width = 375;
+                height = 100;
+                borderRadius = 30;
+            } else {
+                width = 300;
+                height = 60;
+                borderRadius = 16;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            let gradient;
+            if (type === 'primary') {
+                gradient = ctx.createLinearGradient(0, 0, width, height);
+                gradient.addColorStop(0, '#0057B7');
+                gradient.addColorStop(1, '#4A90E2');
+            } else if (type === 'success' || type === 'big') {
+                gradient = ctx.createLinearGradient(0, 0, width, height);
+                gradient.addColorStop(0, '#34C759');
+                gradient.addColorStop(1, '#30D158');
+            } else {
+                ctx.fillStyle = '#3C3C43';
+            }
+            
+            if (gradient) {
+                ctx.fillStyle = gradient;
+            }
+            
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, borderRadius);
+            ctx.fill();
+            
+            // Shadow для big button
+            if (type === 'big') {
+                ctx.shadowColor = 'rgba(52, 199, 89, 0.3)';
+                ctx.shadowBlur = 30;
+                ctx.shadowOffsetY = 10;
+            }
+            
+            // Текст
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = type === 'big' ? 'bold 28px Arial' : 'bold 17px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, width / 2, height / 2);
+        }
+
+        function drawCard(canvas, type) {
+            const ctx = canvas.getContext('2d');
+            const width = 375;
+            const height = 100;
+            canvas.width = width;
+            canvas.height = height;
+            
+            if (type === 'gradient') {
+                const gradient = ctx.createLinearGradient(0, 0, width, height);
+                gradient.addColorStop(0, '#0057B7');
+                gradient.addColorStop(1, '#4A90E2');
+                ctx.fillStyle = gradient;
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+            }
+            
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, 20);
+            ctx.fill();
+            
+            // Додати контент для contact card
+            if (type === 'contact') {
+                ctx.fillStyle = '#000000';
+                ctx.font = '17px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('Мама', 20, 40);
+                ctx.fillStyle = '#666666';
+                ctx.font = '14px Arial';
+                ctx.fillText('2 год тому', 20, 60);
+            } else if (type === 'notification') {
+                ctx.fillStyle = '#000000';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('Мама: Я ОК', 20, 40);
+                ctx.fillStyle = '#666666';
+                ctx.font = '14px Arial';
+                ctx.fillText('5 хвилин тому', 20, 60);
+            } else if (type === 'gradient') {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Зворотній зв\'язок', width / 2, 40);
+                ctx.font = '14px Arial';
+                ctx.fillText('Твої близькі теж можуть надіслати тобі швидке повідомлення', width / 2, 70);
+            }
+        }
+
+        function drawInput(canvas, type, placeholder) {
+            const ctx = canvas.getContext('2d');
+            const width = 375;
+            const height = 60;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Фон
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, 16);
+            ctx.fill();
+            
+            // Border
+            ctx.strokeStyle = '#E5E5EA';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, 16);
+            ctx.stroke();
+            
+            // Placeholder
+            ctx.fillStyle = '#999999';
+            ctx.font = '17px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(placeholder, 20, 35);
+            
+            // Icon для search
+            if (type === 'search') {
+                ctx.fillStyle = '#8E8E93';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText('🔍', width - 20, 35);
+            }
+        }
+
+        function createElementCard(name, category, drawFunc, ...args) {
+            const card = document.createElement('div');
+            card.className = 'element-card';
+            
+            const title = document.createElement('div');
+            title.className = 'element-title';
+            title.textContent = name;
+            
+            const preview = document.createElement('div');
+            preview.className = 'element-preview';
+            
+            const canvas = document.createElement('canvas');
+            drawFunc(canvas, ...args);
+            preview.appendChild(canvas);
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.textContent = '📥 Завантажити';
+            downloadBtn.onclick = () => downloadElement(canvas, `${category}-${name.toLowerCase().replace(/\s+/g, '-')}`);
+            
+            card.appendChild(title);
+            card.appendChild(preview);
+            card.appendChild(downloadBtn);
+            
+            return card;
+        }
+
+        function downloadElement(canvas, name) {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${name}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showStatus(`✅ Завантажено: ${name}.png`);
+            });
+        }
+
+        function renderElements() {
+            // Status Cards
+            const statusGrid = document.getElementById('statusCards');
+            elements.statusCards.forEach(item => {
+                statusGrid.appendChild(createElementCard(
+                    item.name,
+                    'status-card',
+                    drawStatusCard,
+                    item.status,
+                    item.emoji
+                ));
+            });
+
+            // Buttons
+            const buttonsGrid = document.getElementById('buttons');
+            elements.buttons.forEach(item => {
+                buttonsGrid.appendChild(createElementCard(
+                    item.name,
+                    'button',
+                    drawButton,
+                    item.type,
+                    item.text
+                ));
+            });
+
+            // Cards
+            const cardsGrid = document.getElementById('cards');
+            elements.cards.forEach(item => {
+                cardsGrid.appendChild(createElementCard(
+                    item.name,
+                    'card',
+                    drawCard,
+                    item.type
+                ));
+            });
+
+            // Inputs
+            const inputsGrid = document.getElementById('inputs');
+            elements.inputs.forEach(item => {
+                inputsGrid.appendChild(createElementCard(
+                    item.name,
+                    'input',
+                    drawInput,
+                    item.type,
+                    item.placeholder
+                ));
+            });
+        }
+
+        function downloadAllElements() {
+            const allElements = [];
+            
+            // Зібрати всі canvas
+            document.querySelectorAll('.element-preview canvas').forEach(canvas => {
+                const card = canvas.closest('.element-card');
+                const title = card.querySelector('.element-title').textContent;
+                allElements.push({ canvas, name: title });
+            });
+            
+            if (allElements.length === 0) {
+                showStatus('❌ Немає елементів для завантаження');
+                return;
+            }
+            
+            let count = 0;
+            const total = allElements.length;
+            
+            function downloadNext() {
+                if (count >= total) {
+                    showStatus(`✅ Всі ${total} елементів завантажено!`);
+                    return;
+                }
+                
+                const item = allElements[count];
+                const name = `ui-${item.name.toLowerCase().replace(/\s+/g, '-')}`;
+                
+                setTimeout(() => {
+                    downloadElement(item.canvas, name);
+                    count++;
+                    downloadNext();
+                }, 500);
+            }
+            
+            downloadNext();
+        }
+
+        // Автоматично відрендерити при завантаженні
+        window.addEventListener('load', () => {
+            setTimeout(renderElements, 100);
+        });
+    </script>
+</body>
+</html>

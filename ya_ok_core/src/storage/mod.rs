@@ -3,12 +3,11 @@
 //! Хранит сообщения локально с дедупликацией и TTL.
 //! Использует SQLite для структурированных данных.
 
-use crate::core::{Message, Packet};
+use crate::core::Message;
 use rusqlite::{Connection, Result as SqlResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use chrono::{DateTime, Utc};
-use std::collections::HashSet;
 
 /// Запись в хранилище
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -74,6 +73,11 @@ impl Storage {
 
     /// Сохранить сообщение
     pub fn store_message(&self, message: &Message) -> Result<(), StorageError> {
+        self.store_message_with_delivered(message, false)
+    }
+
+    /// Сохранить сообщение с флагом доставки
+    pub fn store_message_with_delivered(&self, message: &Message, delivered: bool) -> Result<(), StorageError> {
         // Проверяем, не видели ли уже это сообщение
         if self.is_message_seen(&message.id)? {
             return Ok(()); // Уже видели, игнорируем
@@ -93,7 +97,7 @@ impl Storage {
                 &message.sender_id,
                 Utc::now().to_rfc3339(),
                 3600, // 1 час TTL по умолчанию
-                false,
+                delivered,
             ),
         )?;
 
@@ -131,6 +135,39 @@ impl Storage {
             .map_err(StorageError::DatabaseError)
     }
 
+    /// Получить последние сообщения после указанной даты
+    pub fn get_messages_since(&self, since: DateTime<Utc>) -> Result<Vec<Message>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT message_data, received_at FROM messages WHERE received_at > ? ORDER BY received_at ASC"
+        )?;
+
+        let messages = stmt.query_map([since.to_rfc3339()], |row| {
+            let message_data: Vec<u8> = row.get(0)?;
+            serde_json::from_slice(&message_data)
+                .map_err(|_| rusqlite::Error::InvalidColumnType(0, "message_data".to_string(), rusqlite::types::Type::Blob))
+        })?;
+
+        messages.collect::<SqlResult<Vec<_>>>()
+            .map_err(StorageError::DatabaseError)
+    }
+
+    /// Получить сообщение по ID
+    pub fn get_message_by_id(&self, id: &str) -> Result<Option<Message>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT message_data FROM messages WHERE message_id = ?"
+        )?;
+
+        let mut rows = stmt.query([id])?;
+        if let Some(row) = rows.next()? {
+            let message_data: Vec<u8> = row.get(0)?;
+            let message: Message = serde_json::from_slice(&message_data)
+                .map_err(|_| StorageError::DeserializationFailed)?;
+            Ok(Some(message))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Получить сообщения от отправителя
     pub fn get_messages_from(&self, sender_id: &str) -> Result<Vec<Message>, StorageError> {
         let mut stmt = self.conn.prepare(
@@ -138,6 +175,22 @@ impl Storage {
         )?;
 
         let messages = stmt.query_map([sender_id], |row| {
+            let message_data: Vec<u8> = row.get(0)?;
+            serde_json::from_slice(&message_data)
+                .map_err(|_| rusqlite::Error::InvalidColumnType(0, "message_data".to_string(), rusqlite::types::Type::Blob))
+        })?;
+
+        messages.collect::<SqlResult<Vec<_>>>()
+            .map_err(StorageError::DatabaseError)
+    }
+
+    /// Получить последние сообщения
+    pub fn get_recent_messages(&self, limit: usize) -> Result<Vec<Message>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT message_data FROM messages ORDER BY received_at DESC LIMIT ?"
+        )?;
+
+        let messages = stmt.query_map([limit as i64], |row| {
             let message_data: Vec<u8> = row.get(0)?;
             serde_json::from_slice(&message_data)
                 .map_err(|_| rusqlite::Error::InvalidColumnType(0, "message_data".to_string(), rusqlite::types::Type::Blob))
@@ -226,7 +279,7 @@ impl Storage {
 }
 
 /// Статистика хранилища
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct StorageStats {
     pub total_messages: usize,
     pub pending_messages: usize,

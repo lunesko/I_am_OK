@@ -5,14 +5,18 @@
 //! - Обмен дайджестами сообщений
 //! - Запрос недостающих сообщений
 
-use crate::core::{Message, Packet};
+use crate::core::{Message, MessagePayload, MessageType};
 use crate::storage::Storage;
 use crate::transport::{TransportManager, Peer};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 use tokio::sync::RwLock;
+use std::sync::Arc;
+use crate::core::{Identity, Packet};
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
 
 /// Дайджест сообщения для gossip
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -49,8 +53,8 @@ pub enum GossipMessage {
 }
 
 /// Gossip протокол
-#[async_trait]
-pub trait GossipProtocol: Send + Sync {
+#[async_trait(?Send)]
+pub trait GossipProtocol {
     /// Синхронизироваться с пиром
     async fn sync_with_peer(&self, peer: &Peer) -> Result<(), GossipError>;
 
@@ -65,6 +69,7 @@ pub trait GossipProtocol: Send + Sync {
 pub struct Gossip {
     storage: Storage,
     transport_manager: TransportManager,
+    identity: Arc<RwLock<Option<Identity>>>,
     /// Время последней синхронизации с каждым пиром
     last_sync: RwLock<std::collections::HashMap<String, DateTime<Utc>>>,
     /// Статистика
@@ -72,10 +77,15 @@ pub struct Gossip {
 }
 
 impl Gossip {
-    pub fn new(storage: Storage, transport_manager: TransportManager) -> Self {
+    pub fn new(
+        storage: Storage,
+        transport_manager: TransportManager,
+        identity: Arc<RwLock<Option<Identity>>>,
+    ) -> Self {
         Self {
             storage,
             transport_manager,
+            identity,
             last_sync: RwLock::new(std::collections::HashMap::new()),
             stats: RwLock::new(GossipStats::default()),
         }
@@ -111,39 +121,29 @@ impl Gossip {
 
     /// Запустить периодическую синхронизацию
     pub async fn start_periodic_sync(&self) {
-        let gossip = self.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300)); // 5 мин
-
-            loop {
-                interval.tick().await;
-
-                // Синхронизируемся со всеми известными пирами
-                let peers = gossip.transport_manager.discover_all_peers().await
-                    .unwrap_or_default();
-
-                for peer in peers {
-                    if let Err(_) = gossip.sync_with_peer(&peer).await {
-                        // Логируем ошибку, но продолжаем
-                    }
-                }
-            }
-        });
+        // TODO: фоновые задачи требуют Send + 'static, вернемся после стабилизации storage/transport.
     }
-}
 
-impl Clone for Gossip {
-    fn clone(&self) -> Self {
-        Self {
-            storage: self.storage.clone(), // TODO: Storage needs Clone
-            transport_manager: TransportManager::new(), // TODO: proper clone
-            last_sync: RwLock::new(std::collections::HashMap::new()),
-            stats: RwLock::new(GossipStats::default()),
+    pub(crate) fn encode_gossip(message: &GossipMessage) -> Result<String, GossipError> {
+        let mut data = Vec::new();
+        ciborium::ser::into_writer(message, &mut data)
+            .map_err(|_| GossipError::SerializationFailed)?;
+        Ok(format!("__gossip__:{}", BASE64.encode(&data)))
+    }
+
+    pub(crate) fn decode_gossip(text: &str) -> Result<Option<GossipMessage>, GossipError> {
+        if !text.starts_with("__gossip__:") {
+            return Ok(None);
         }
+        let payload = text.trim_start_matches("__gossip__:");
+        let decoded = BASE64.decode(payload).map_err(|_| GossipError::SerializationFailed)?;
+        let message: GossipMessage = ciborium::de::from_reader(decoded.as_slice())
+            .map_err(|_| GossipError::SerializationFailed)?;
+        Ok(Some(message))
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl GossipProtocol for Gossip {
     async fn sync_with_peer(&self, peer: &Peer) -> Result<(), GossipError> {
         let mut stats = self.stats.write().await;
@@ -243,12 +243,44 @@ impl GossipProtocol for Gossip {
 impl Gossip {
     /// Отправить gossip сообщение
     async fn send_gossip_message(&self, message: &GossipMessage, peer: &Peer) -> Result<(), GossipError> {
-        // Сериализуем в CBOR
-        let data = ciborium::ser::into_writer(message, Vec::new())
+        // Нужна identity для подписи/шифрования пакета
+        let identity = {
+            let lock = self.identity.read().await;
+            lock.clone().ok_or(GossipError::SerializationFailed)?
+        };
+
+        // Нужен X25519 публичный ключ получателя
+        let receiver_key = match &peer.x25519_public_key {
+            Some(key) if key.len() == 32 => {
+                let mut buf = [0u8; 32];
+                buf.copy_from_slice(key);
+                buf
+            }
+            _ => return Err(GossipError::SerializationFailed),
+        };
+
+        // Кодируем gossip в текстовое сообщение
+        let gossip_text = Self::encode_gossip(message)?;
+        let msg = Message {
+            id: Uuid::new_v4().to_string(),
+            message_type: MessageType::Text,
+            sender_id: identity.id.clone(),
+            timestamp: Utc::now(),
+            payload: MessagePayload::Text(gossip_text),
+        };
+
+        let packet = Packet::from_message(&msg, &identity, &receiver_key)
             .map_err(|_| GossipError::SerializationFailed)?;
 
-        // Отправляем как обычный пакет
-        // TODO: реализовать отправку gossip сообщений через транспорт
+        // Отправляем через транспорт
+        self.transport_manager
+            .send_packet(&packet, &peer.address)
+            .await
+            .map_err(|_| GossipError::SerializationFailed)?;
+
+        // Обновляем статистику
+        let mut stats = self.stats.write().await;
+        stats.messages_exchanged += 1;
 
         Ok(())
     }
@@ -278,15 +310,4 @@ pub enum GossipError {
     DigestVerificationFailed,
 }
 
-// TODO: добавить недостающие методы в Storage
-impl Storage {
-    fn get_messages_since(&self, _since: DateTime<Utc>) -> Result<Vec<Message>, crate::storage::StorageError> {
-        // TODO: реализовать
-        Ok(Vec::new())
-    }
-
-    fn get_message_by_id(&self, _id: &str) -> Result<Option<Message>, crate::storage::StorageError> {
-        // TODO: реализовать
-        Ok(None)
-    }
-}
+// TODO: активировать фоновую синхронизацию при готовых транспортных каналах

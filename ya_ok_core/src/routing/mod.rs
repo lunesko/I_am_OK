@@ -12,11 +12,10 @@ use crate::transport::{TransportManager, Peer};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc};
 
 /// Интерфейс маршрутизатора
-#[async_trait]
-pub trait Router: Send + Sync {
+#[async_trait(?Send)]
+pub trait Router {
     /// Обработать входящий пакет
     async fn handle_packet(&self, packet: Packet) -> Result<(), RoutingError>;
 
@@ -58,6 +57,11 @@ impl DtnRouter {
         }
     }
 
+    /// Получить доступ к known_peers (для чтения)
+    pub fn known_peers(&self) -> &RwLock<HashMap<String, Peer>> {
+        &self.known_peers
+    }
+
     /// Проверить, можем ли мы forward пакет
     fn can_forward(packet: &Packet) -> bool {
         !packet.is_expired() && packet.can_forward()
@@ -69,20 +73,17 @@ impl DtnRouter {
         match packet.priority {
             Priority::High => {
                 // Сначала UDP, потом Wi-Fi Direct
-                if let Some(transport) = self.transport_manager.transports.iter()
-                    .find(|t| t.transport_type() == crate::transport::TransportType::Udp) {
-                    return Some(&**transport);
+                if let Some(transport) = self.transport_manager.get_transport(crate::transport::TransportType::Udp) {
+                    return Some(transport);
                 }
-                if let Some(transport) = self.transport_manager.transports.iter()
-                    .find(|t| t.transport_type() == crate::transport::TransportType::WifiDirect) {
-                    return Some(&**transport);
+                if let Some(transport) = self.transport_manager.get_transport(crate::transport::TransportType::WifiDirect) {
+                    return Some(transport);
                 }
             }
             Priority::Medium => {
                 // Wi-Fi Direct или BLE
-                if let Some(transport) = self.transport_manager.transports.iter()
-                    .find(|t| t.transport_type() == crate::transport::TransportType::WifiDirect) {
-                    return Some(&**transport);
+                if let Some(transport) = self.transport_manager.get_transport(crate::transport::TransportType::WifiDirect) {
+                    return Some(transport);
                 }
             }
             Priority::Low => {
@@ -91,13 +92,11 @@ impl DtnRouter {
         }
 
         // Fallback: BLE (всегда доступен)
-        self.transport_manager.transports.iter()
-            .find(|t| t.transport_type() == crate::transport::TransportType::Ble)
-            .map(|t| &**t)
+        self.transport_manager.get_transport(crate::transport::TransportType::Ble)
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Router for DtnRouter {
     async fn handle_packet(&self, mut packet: Packet) -> Result<(), RoutingError> {
         let mut stats = self.stats.write().await;
@@ -149,8 +148,7 @@ impl Router for DtnRouter {
 
         if known_peers.is_empty() {
             // Нет известных пиров - сохраняем для поздней отправки
-            let message = packet.decrypt(&self.storage, &[])?; // TODO: decryption
-            self.storage.store_message(&message)?;
+            // TODO: очередь пакетов до появления пиров
             return Ok(());
         }
 

@@ -75,17 +75,31 @@ int ya_ok_set_policy(int policy_type);  // 0=Default, 1=Military, 2=Collapse, 3=
 cargo build --release
 ```
 
-Для Android:
+## Мобильная интеграция
+
+### Android (JNI)
+
+1. Установить `cargo-ndk` и Android NDK.
+2. Собрать библиотеки и положить их в `android/app/src/main/jniLibs/`.
 
 ```bash
-cargo build --target aarch64-linux-android --release
+cargo install cargo-ndk
+cargo ndk -t armeabi-v7a -t arm64-v8a -o ../android/app/src/main/jniLibs build --release
 ```
 
-Для iOS:
+Kotlin использует `System.loadLibrary("ya_ok_core")` и JNI-обёртки уже экспортированы.
+
+### iOS (Swift)
+
+1. Установить iOS targets для Rust.
+2. Собрать статическую библиотеку и подключить её в Xcode.
 
 ```bash
+rustup target add aarch64-apple-ios
 cargo build --target aarch64-apple-ios --release
 ```
+
+Скопируйте `target/aarch64-apple-ios/release/libya_ok_core.a` в Xcode (Runner target).
 
 ## Policy (ограничения среды)
 

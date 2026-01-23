@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#0057B7</color>
+    <color name="primary">#0057B7</color>
+    <color name="primary_dark">#004090</color>
+    <color name="secondary">#30D158</color>
+    <color name="success">#30D158</color>
+    <color name="success_dark">#30D158</color>
+    <color name="warning">#FF9500</color>
+    <color name="background">#000000</color>
+    <color name="card_background">#1C1C1E</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#999999</color>
+    <color name="border">#38383A</color>
+</resources>

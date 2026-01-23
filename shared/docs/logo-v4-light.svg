@@ -1,0 +1,11 @@
+<svg width="200" height="80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0057B7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#34C759;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <text x="10" y="60" font-family="SF Pro Display, -apple-system, Roboto, sans-serif" 
+        font-size="48" font-weight="700" letter-spacing="-1" 
+        fill="url(#gradient-light)">Я ОК</text>
+</svg>

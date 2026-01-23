@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "250491630069",
+    "project_id": "i-am-ok-2f7b9",
+    "storage_bucket": "i-am-ok-2f7b9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:250491630069:android:57ed4b31ab78062111b0bc",
+        "android_client_info": {
+          "package_name": "app.poruch.ya_ok"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWq_Kb7QQ3HhLY-NouFSSZdABhQpacInM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

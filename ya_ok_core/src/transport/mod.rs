@@ -14,10 +14,9 @@ pub mod satellite;
 use crate::core::Packet;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// Тип транспортного канала
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum TransportType {
     Ble,
     WifiDirect,
@@ -60,6 +59,10 @@ pub struct Peer {
     pub last_seen: chrono::DateTime<chrono::Utc>,
     /// Уровень сигнала (опционально)
     pub signal_strength: Option<i32>,
+    /// Ed25519 публичный ключ (для верификации подписей)
+    pub ed25519_public_key: Option<Vec<u8>>,
+    /// X25519 публичный ключ (для ECDH шифрования)
+    pub x25519_public_key: Option<Vec<u8>>,
 }
 
 /// Менеджер транспорта
@@ -83,9 +86,16 @@ impl TransportManager {
     pub fn available_transports(&self) -> Vec<TransportType> {
         self.transports
             .iter()
-            .filter(|t| async_std::task::block_on(t.is_available()))
             .map(|t| t.transport_type())
             .collect()
+    }
+
+    /// Получить транспорт по типу
+    pub fn get_transport(&self, transport_type: TransportType) -> Option<&dyn Transport> {
+        self.transports
+            .iter()
+            .find(|t| t.transport_type() == transport_type)
+            .map(|t| t.as_ref())
     }
 
     /// Отправить пакет через лучший доступный транспорт

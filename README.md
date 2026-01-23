@@ -10,8 +10,13 @@ docs/
 ├── privacy.html        # Політика конфіденційності
 ├── terms.html          # Умови використання
 ├── support.html        # Сторінка підтримки
+├── RELAY_SERVER_GUIDE.md # Relay server guide
 └── .nojekyll           # Файл для GitHub Pages
 ```
+
+## 📚 Технічні гайды
+
+- [Relay server guide](docs/RELAY_SERVER_GUIDE.md)
 
 ## 🌐 GitHub Pages
 
