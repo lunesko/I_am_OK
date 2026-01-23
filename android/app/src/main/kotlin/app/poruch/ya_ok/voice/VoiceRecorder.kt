@@ -19,7 +19,7 @@ class VoiceRecorder(private val context: Context) {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioEncodingBitRate(64_000)
+                setAudioEncodingBitRate(32_000)
                 setAudioSamplingRate(16_000)
                 setMaxDuration(7_000)
                 setOutputFile(file.absolutePath)
@@ -37,20 +37,24 @@ class VoiceRecorder(private val context: Context) {
         }
     }
 
-    fun stop(): ByteArray? {
+    fun stop(): File? {
         val mediaRecorder = recorder ?: return null
         return try {
             mediaRecorder.stop()
             mediaRecorder.release()
             recorder = null
-            val file = outputFile
-            outputFile = null
-            file?.readBytes()
+            outputFile
         } catch (_: Exception) {
             recorder = null
+            outputFile?.delete()
             outputFile = null
             null
         }
+    }
+
+    fun discardLast() {
+        outputFile?.delete()
+        outputFile = null
     }
 
     fun cancel() {
@@ -62,7 +66,6 @@ class VoiceRecorder(private val context: Context) {
             release()
         }
         recorder = null
-        outputFile?.delete()
-        outputFile = null
+        discardLast()
     }
 }

@@ -291,13 +291,24 @@
                         android:textColor="@color/text_primary" />
 
                     <com.google.android.material.button.MaterialButton
+                        android:id="@+id/playVoiceButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:background="@drawable/bg_secondary_button"
+                        android:backgroundTint="@null"
+                        android:text="▶️"
+                        android:textColor="@color/text_primary"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/clearVoiceButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
                         android:background="@drawable/bg_secondary_button"
                         android:backgroundTint="@null"
-                        android:text="✕"
+                        android:text="🔄"
                         android:textColor="@color/text_primary"
                         android:visibility="gone" />
                 </LinearLayout>

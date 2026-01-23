@@ -1,6 +1,7 @@
 package app.poruch.ya_ok.ui
 
 import android.Manifest
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.text.format.DateFormat
@@ -21,6 +22,9 @@ import java.util.Date
 
 class MainFragment : Fragment(R.layout.fragment_main) {
     private enum class StatusOption { OK, BUSY, LATER, HUG }
+    private companion object {
+        private const val MAX_VOICE_BYTES = 56_000
+    }
 
     private lateinit var statusOkCard: MaterialCardView
     private lateinit var statusBusyCard: MaterialCardView
@@ -32,14 +36,17 @@ class MainFragment : Fragment(R.layout.fragment_main) {
     private lateinit var statusHugCheck: TextView
     private lateinit var textInput: TextInputEditText
     private lateinit var recordVoiceButton: MaterialButton
+    private lateinit var playVoiceButton: MaterialButton
     private lateinit var clearVoiceButton: MaterialButton
     private lateinit var voiceStatus: TextView
     private lateinit var lastCheckin: TextView
 
     private var selectedStatus = StatusOption.OK
     private var recordedVoice: ByteArray? = null
+    private var recordedVoiceFile: java.io.File? = null
     private var voiceRecorder: VoiceRecorder? = null
     private var countdown: CountDownTimer? = null
+    private var mediaPlayer: MediaPlayer? = null
 
     private val micPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -82,6 +89,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
 
         textInput = view.findViewById(R.id.textInput)
         recordVoiceButton = view.findViewById(R.id.recordVoiceButton)
+        playVoiceButton = view.findViewById(R.id.playVoiceButton)
         clearVoiceButton = view.findViewById(R.id.clearVoiceButton)
         voiceStatus = view.findViewById(R.id.voiceStatus)
         lastCheckin = view.findViewById(R.id.lastCheckin)
@@ -94,10 +102,15 @@ class MainFragment : Fragment(R.layout.fragment_main) {
             }
         }
 
+        playVoiceButton.setOnClickListener {
+            togglePlayback()
+        }
+
         clearVoiceButton.setOnClickListener {
-            recordedVoice = null
-            clearVoiceButton.visibility = View.GONE
-            voiceStatus.text = ""
+            // Re-record: discard current clip and start recording again
+            stopPlayback()
+            discardRecordedVoice()
+            requestMicPermission()
         }
 
         view.findViewById<MaterialButton>(R.id.sendButton).setOnClickListener {
@@ -110,6 +123,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
     override fun onDestroyView() {
         super.onDestroyView()
         countdown?.cancel()
+        stopPlayback()
         voiceRecorder?.cancel()
         voiceRecorder = null
     }
@@ -142,13 +156,15 @@ class MainFragment : Fragment(R.layout.fragment_main) {
     }
 
     private fun startRecording() {
+        stopPlayback()
+        // discard previous clip BEFORE starting new recording (so we don't delete active file)
+        discardRecordedVoice()
+
         val started = voiceRecorder?.start() == true
         if (!started) {
             Toast.makeText(requireContext(), "Не вдалося почати запис", Toast.LENGTH_SHORT).show()
             return
         }
-        recordedVoice = null
-        clearVoiceButton.visibility = View.GONE
         recordVoiceButton.text = "⏹"
         voiceStatus.text = "00:07"
 
@@ -167,17 +183,30 @@ class MainFragment : Fragment(R.layout.fragment_main) {
 
     private fun stopRecording() {
         countdown?.cancel()
-        val bytes = voiceRecorder?.stop()
+        val file = voiceRecorder?.stop()
         recordVoiceButton.text = "🎙️"
 
-        if (bytes == null || bytes.isEmpty()) {
+        if (file == null || !file.exists() || file.length() == 0L) {
             voiceStatus.text = ""
             Toast.makeText(requireContext(), "Запис не збережено", Toast.LENGTH_SHORT).show()
             return
         }
 
-        recordedVoice = bytes
+        recordedVoiceFile = file
+        recordedVoice = runCatching { file.readBytes() }.getOrNull()
+        if (recordedVoice == null || recordedVoice?.isEmpty() == true) {
+            discardRecordedVoice()
+            Toast.makeText(requireContext(), "Запис не збережено", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if ((recordedVoice?.size ?: 0) > MAX_VOICE_BYTES) {
+            discardRecordedVoice()
+            Toast.makeText(requireContext(), "Голос занадто довгий, перезапишіть", Toast.LENGTH_SHORT).show()
+            return
+        }
         voiceStatus.text = getString(R.string.voice_ready)
+        playVoiceButton.visibility = View.VISIBLE
+        playVoiceButton.text = "▶️"
         clearVoiceButton.visibility = View.VISIBLE
     }
 
@@ -186,6 +215,8 @@ class MainFragment : Fragment(R.layout.fragment_main) {
             Toast.makeText(requireContext(), "Ідентичність недоступна", Toast.LENGTH_SHORT).show()
             return
         }
+
+        stopPlayback()
 
         val statusResult = when (selectedStatus) {
             StatusOption.OK -> CoreGateway.sendStatus(0)
@@ -219,11 +250,61 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         AppPreferences.setLastCheckin(requireContext(), System.currentTimeMillis())
         updateLastCheckin()
         textInput.setText("")
-        recordedVoice = null
-        clearVoiceButton.visibility = View.GONE
-        voiceStatus.text = ""
+        discardRecordedVoice()
 
         (activity as? Navigator)?.showSuccess()
+    }
+
+    private fun discardRecordedVoice() {
+        recordedVoice = null
+        recordedVoiceFile = null
+        clearVoiceButton.visibility = View.GONE
+        playVoiceButton.visibility = View.GONE
+        voiceStatus.text = ""
+        // Best-effort cleanup of last recorded file (avoid touching file while recording)
+        if (voiceRecorder?.isRecording != true) {
+            voiceRecorder?.discardLast()
+        }
+    }
+
+    private fun togglePlayback() {
+        val file = recordedVoiceFile
+        if (file == null || !file.exists()) {
+            Toast.makeText(requireContext(), "Немає запису для прослуховування", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val player = mediaPlayer
+        if (player == null) {
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                setOnCompletionListener {
+                    playVoiceButton.text = "▶️"
+                    stopPlayback()
+                }
+                prepare()
+                start()
+            }
+            playVoiceButton.text = "⏸"
+            return
+        }
+
+        if (player.isPlaying) {
+            player.pause()
+            playVoiceButton.text = "▶️"
+        } else {
+            player.start()
+            playVoiceButton.text = "⏸"
+        }
+    }
+
+    private fun stopPlayback() {
+        mediaPlayer?.runCatching { stop() }
+        mediaPlayer?.runCatching { release() }
+        mediaPlayer = null
+        if (this::playVoiceButton.isInitialized) {
+            playVoiceButton.text = "▶️"
+        }
     }
 
     private fun updateLastCheckin() {
