@@ -1,6 +1,7 @@
 package app.poruch.ya_ok.ui
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
 import android.text.format.DateUtils
@@ -10,6 +11,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import app.poruch.ya_ok.R
 import app.poruch.ya_ok.core.CoreGateway
@@ -19,6 +21,17 @@ import com.google.android.material.button.MaterialButton
 
 class FamilyFragment : Fragment(R.layout.fragment_family) {
     private lateinit var contactsContainer: LinearLayout
+    
+    private val qrScannerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val scannedId = result.data?.getStringExtra("scanned_id")
+            if (!scannedId.isNullOrBlank()) {
+                showAddContactDialogWithId(scannedId)
+            }
+        }
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -29,6 +42,12 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
         contactsContainer = view.findViewById(R.id.contactsContainer)
         view.findViewById<View>(R.id.addContactCard).setOnClickListener {
             showAddContactDialog()
+        }
+        view.findViewById<View>(R.id.showQrCard).setOnClickListener {
+            startActivity(Intent(requireContext(), QrCodeActivity::class.java))
+        }
+        view.findViewById<View>(R.id.scanQrCard).setOnClickListener {
+            qrScannerLauncher.launch(Intent(requireContext(), QrScannerActivity::class.java))
         }
         view.findViewById<MaterialButton>(R.id.feedbackButton).setOnClickListener {
             val result = CoreGateway.sendText("Вдома все добре")
@@ -71,6 +90,10 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
     }
 
     private fun showAddContactDialog() {
+        showAddContactDialogWithId(null)
+    }
+
+    private fun showAddContactDialogWithId(scannedId: String?) {
         val nameInput = EditText(requireContext()).apply {
             hint = "Ім'я"
             inputType = InputType.TYPE_CLASS_TEXT
@@ -78,6 +101,10 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
         val idInput = EditText(requireContext()).apply {
             hint = "ID (необов'язково)"
             inputType = InputType.TYPE_CLASS_TEXT
+            if (scannedId != null) {
+                setText(scannedId)
+                isEnabled = false
+            }
         }
         val container = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
@@ -99,6 +126,7 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                 val contactId = if (id.isBlank()) "local_${System.currentTimeMillis()}" else id
                 ContactStore.addContact(requireContext(), Contact(contactId, name))
                 renderContacts()
+                Toast.makeText(requireContext(), "Людину додано", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Скасувати", null)
             .show()
