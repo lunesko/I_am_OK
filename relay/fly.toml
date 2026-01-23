@@ -14,4 +14,3 @@ app = "i-am-ok-relay"
   protocol = "udp"
   [[services.ports]]
     port = 40000
-    handlers = ["udp"]
