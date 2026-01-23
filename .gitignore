@@ -26,6 +26,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+ya_ok_core/target/
 
 # Symbolication related
 app.*.symbols
