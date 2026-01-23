@@ -2,8 +2,10 @@ package app.poruch.ya_ok.ui
 
 import android.app.AlertDialog
 import android.app.TimePickerDialog
+import android.content.Intent
 import android.os.Bundle
 import android.text.format.DateFormat
+import android.net.Uri
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
@@ -17,6 +19,8 @@ import java.util.Calendar
 class SettingsFragment : Fragment(R.layout.fragment_settings) {
     private lateinit var reminderSummary: TextView
     private lateinit var warnSummary: TextView
+
+    private val supportUrl = "https://buymeacoffee.com/lunesko"
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -47,7 +51,7 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
 
         view.findViewById<View>(R.id.supportButton).setOnClickListener {
-            Toast.makeText(requireContext(), "Дякуємо за підтримку!", Toast.LENGTH_SHORT).show()
+            openSupportLink()
         }
 
         refreshSummaries()
@@ -90,5 +94,15 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         }
         val formatter = DateFormat.getTimeFormat(requireContext())
         return formatter.format(calendar.time)
+    }
+
+    private fun openSupportLink() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(supportUrl))
+        val pm = requireContext().packageManager
+        if (intent.resolveActivity(pm) == null) {
+            Toast.makeText(requireContext(), supportUrl, Toast.LENGTH_LONG).show()
+            return
+        }
+        startActivity(intent)
     }
 }

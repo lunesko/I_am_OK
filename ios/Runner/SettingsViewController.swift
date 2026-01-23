@@ -1,6 +1,7 @@
 import UIKit
 
 final class SettingsViewController: UIViewController {
+    private let supportUrl = URL(string: "https://buymeacoffee.com/lunesko")
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
     private let reminderSummary = UILabel()
@@ -87,7 +88,7 @@ final class SettingsViewController: UIViewController {
         supportButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
         supportButton.layer.cornerRadius = 12
         supportButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        supportButton.addTarget(self, action: #selector(showSupportThanks), for: .touchUpInside)
+        supportButton.addTarget(self, action: #selector(openSupportLink), for: .touchUpInside)
 
         supportStack.addArrangedSubview(heart)
         supportStack.addArrangedSubview(supportTitle)
@@ -277,10 +278,14 @@ final class SettingsViewController: UIViewController {
         view.window?.overrideUserInterfaceStyle = themeSwitch.isOn ? .dark : .light
     }
 
-    @objc private func showSupportThanks() {
-        let alert = UIAlertController(title: nil, message: "Дякуємо за підтримку!", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
+    @objc private func openSupportLink() {
+        guard let url = supportUrl else {
+            let alert = UIAlertController(title: nil, message: "Помилка посилання підтримки", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 
     private func format(minutes: Int) -> String {
