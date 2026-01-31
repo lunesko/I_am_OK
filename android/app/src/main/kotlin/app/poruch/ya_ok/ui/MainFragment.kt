@@ -1,6 +1,10 @@
 package app.poruch.ya_ok.ui
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.location.LocationManager
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -14,6 +18,7 @@ import androidx.fragment.app.Fragment
 import app.poruch.ya_ok.R
 import app.poruch.ya_ok.core.CoreGateway
 import app.poruch.ya_ok.data.AppPreferences
+import app.poruch.ya_ok.util.LocationUtils
 import app.poruch.ya_ok.voice.VoiceRecorder
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -40,6 +45,10 @@ class MainFragment : Fragment(R.layout.fragment_main) {
     private lateinit var clearVoiceButton: MaterialButton
     private lateinit var voiceStatus: TextView
     private lateinit var lastCheckin: TextView
+    private lateinit var locationWarningText: TextView
+
+    private var locationReceiver: BroadcastReceiver? = null
+    private var locationReceiverRegistered: Boolean = false
 
     private var selectedStatus = StatusOption.OK
     private var recordedVoice: ByteArray? = null
@@ -93,6 +102,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         clearVoiceButton = view.findViewById(R.id.clearVoiceButton)
         voiceStatus = view.findViewById(R.id.voiceStatus)
         lastCheckin = view.findViewById(R.id.lastCheckin)
+        locationWarningText = view.findViewById(R.id.locationWarningText)
 
         recordVoiceButton.setOnClickListener {
             if (voiceRecorder?.isRecording == true) {
@@ -118,6 +128,18 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         }
 
         updateLastCheckin()
+        updateLocationWarning()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerLocationReceiverIfNeeded()
+        updateLocationWarning()
+    }
+
+    override fun onStop() {
+        unregisterLocationReceiverIfNeeded()
+        super.onStop()
     }
 
     override fun onDestroyView() {
@@ -126,6 +148,43 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         stopPlayback()
         voiceRecorder?.cancel()
         voiceRecorder = null
+    }
+
+    private fun registerLocationReceiverIfNeeded() {
+        if (locationReceiverRegistered) return
+        val receiver = locationReceiver ?: object : BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: Intent) {
+                when (intent.action) {
+                    LocationManager.MODE_CHANGED_ACTION,
+                    LocationManager.PROVIDERS_CHANGED_ACTION -> updateLocationWarning()
+                }
+            }
+        }.also { locationReceiver = it }
+
+        val filter = IntentFilter().apply {
+            addAction(LocationManager.MODE_CHANGED_ACTION)
+            addAction(LocationManager.PROVIDERS_CHANGED_ACTION)
+        }
+        ContextCompat.registerReceiver(
+            requireContext(),
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        locationReceiverRegistered = true
+    }
+
+    private fun unregisterLocationReceiverIfNeeded() {
+        if (!locationReceiverRegistered) return
+        val receiver = locationReceiver ?: return
+        runCatching { requireContext().unregisterReceiver(receiver) }
+        locationReceiverRegistered = false
+    }
+
+    private fun updateLocationWarning() {
+        if (!this::locationWarningText.isInitialized) return
+        val enabled = LocationUtils.isLocationEnabled(requireContext())
+        locationWarningText.setText(if (enabled) R.string.warning_geo_on else R.string.warning_no_geo)
     }
 
     private fun updateStatus(status: StatusOption) {

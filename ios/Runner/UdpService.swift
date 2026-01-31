@@ -3,6 +3,8 @@ import Network
 
 final class UdpService {
     private let port: NWEndpoint.Port = 45678
+    private let relayHost = NWEndpoint.Host("213.188.195.83")
+    private let relayPort: NWEndpoint.Port = 40100
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "yaok.udp")
     var onMessage: ((Data, String) -> Void)?
@@ -27,7 +29,18 @@ final class UdpService {
     }
 
     func send(data: Data) {
-        let connection = NWConnection(host: "255.255.255.255", port: port, using: .udp)
+        send(to: NWEndpoint.Host("255.255.255.255"), port: port, data: data)
+        send(to: relayHost, port: relayPort, data: data)
+    }
+
+    private func send(to host: NWEndpoint.Host, port: NWEndpoint.Port, data: Data) {
+        let params = NWParameters.udp
+        params.allowLocalEndpointReuse = true
+        if let any = IPv4Address("0.0.0.0") {
+            params.requiredLocalEndpoint = .hostPort(host: .ipv4(any), port: self.port)
+        }
+
+        let connection = NWConnection(host: host, port: port, using: params)
         connection.start(queue: queue)
         connection.send(content: data, completion: .contentProcessed { _ in
             connection.cancel()

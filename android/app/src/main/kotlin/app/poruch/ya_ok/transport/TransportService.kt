@@ -60,12 +60,6 @@ class TransportService : Service() {
 
         udpTransport.send(packets)
         bleTransport.send(packets)
-
-        // Временно сохраняем совместимость: помечаем отправленные сообщения как доставленные
-        val json = CoreGateway.exportPendingMessages(50).orEmpty()
-        if (json.length > 2) {
-            markDelivered(json)
-        }
     }
 
     private fun handleIncoming(payload: String, transportType: Int, address: String) {

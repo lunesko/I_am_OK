@@ -8,6 +8,8 @@ final class SettingsViewController: UIViewController {
     private let warnSummary = UILabel()
     private let quietSwitch = UISwitch()
     private let themeSwitch = UISwitch()
+    private let wipeTitle = "Екстрене очищення"
+    private let wipeMessage = "Це видалить локальні дані на цьому пристрої та поверне до онбордингу. Продовжити?"
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -102,6 +104,60 @@ final class SettingsViewController: UIViewController {
             supportStack.bottomAnchor.constraint(equalTo: supportCard.bottomAnchor, constant: -16)
         ])
         contentStack.addArrangedSubview(supportCard)
+
+        let wipeCard = UIView()
+        wipeCard.backgroundColor = .yaCard
+        wipeCard.layer.cornerRadius = 16
+        wipeCard.layer.borderWidth = 1
+        wipeCard.layer.borderColor = UIColor.yaBorder.cgColor
+        wipeCard.translatesAutoresizingMaskIntoConstraints = false
+        wipeCard.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(confirmWipe)))
+
+        let wipeIcon = UILabel()
+        wipeIcon.text = "🧨"
+        wipeIcon.font = .systemFont(ofSize: 16)
+        wipeIcon.backgroundColor = .yaBackground
+        wipeIcon.textAlignment = .center
+        wipeIcon.layer.cornerRadius = 10
+        wipeIcon.clipsToBounds = true
+        wipeIcon.translatesAutoresizingMaskIntoConstraints = false
+        wipeIcon.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        wipeIcon.heightAnchor.constraint(equalToConstant: 40).isActive = true
+
+        let wipeTitleLabel = UILabel()
+        wipeTitleLabel.text = wipeTitle
+        wipeTitleLabel.font = .systemFont(ofSize: 16, weight: .bold)
+        wipeTitleLabel.textColor = .yaTextPrimary
+
+        let wipeDescLabel = UILabel()
+        wipeDescLabel.text = "Видалити локальні дані (ID, базу, контакти)"
+        wipeDescLabel.font = .systemFont(ofSize: 13)
+        wipeDescLabel.textColor = .yaTextSecondary
+        wipeDescLabel.numberOfLines = 0
+
+        let wipeInfo = UIStackView(arrangedSubviews: [wipeTitleLabel, wipeDescLabel])
+        wipeInfo.axis = .vertical
+        wipeInfo.spacing = 2
+
+        let arrow = UILabel()
+        arrow.text = "›"
+        arrow.font = .systemFont(ofSize: 18)
+        arrow.textColor = .yaTextSecondary
+
+        let wipeRow = UIStackView(arrangedSubviews: [wipeIcon, wipeInfo, arrow])
+        wipeRow.axis = .horizontal
+        wipeRow.spacing = 12
+        wipeRow.alignment = .center
+        wipeRow.translatesAutoresizingMaskIntoConstraints = false
+
+        wipeCard.addSubview(wipeRow)
+        NSLayoutConstraint.activate([
+            wipeRow.leadingAnchor.constraint(equalTo: wipeCard.leadingAnchor, constant: 16),
+            wipeRow.trailingAnchor.constraint(equalTo: wipeCard.trailingAnchor, constant: -16),
+            wipeRow.topAnchor.constraint(equalTo: wipeCard.topAnchor, constant: 12),
+            wipeRow.bottomAnchor.constraint(equalTo: wipeCard.bottomAnchor, constant: -12)
+        ])
+        contentStack.addArrangedSubview(wipeCard)
 
         view.addSubview(header)
         view.addSubview(scrollView)
@@ -286,6 +342,55 @@ final class SettingsViewController: UIViewController {
             return
         }
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+
+    @objc private func confirmWipe() {
+        let alert = UIAlertController(title: wipeTitle, message: wipeMessage, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Скасувати", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Як видалити додаток", style: .default, handler: { [weak self] _ in
+            self?.showUninstallHelp()
+        }))
+        alert.addAction(UIAlertAction(title: "Очистити", style: .destructive, handler: { [weak self] _ in
+            self?.performWipe()
+        }))
+        present(alert, animated: true)
+    }
+
+    private func showUninstallHelp() {
+        let msg = "iOS не дозволяє видаляти додатки програмно.\n\nШвидке видалення:\nНалаштування → Основні → Сховище iPhone → Ya Ok → Видалити додаток."
+        let alert = UIAlertController(title: "Видалення додатку", message: msg, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func performWipe() {
+        TransportCoordinator.shared.stop()
+
+        // Clear app preferences & cached models.
+        if let bundleId = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleId)
+            UserDefaults.standard.synchronize()
+        }
+
+        // Best-effort delete Application Support directory (core data lives there).
+        if let baseUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            try? FileManager.default.removeItem(at: baseUrl)
+        }
+
+        let result = CoreBridge.shared.wipeLocalData()
+        if result != 0 {
+            let alert = UIAlertController(title: nil, message: "Помилка очищення (\(result))", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        // Restart UI flow.
+        if let appDelegate = UIApplication.shared.delegate as? AppDelegate {
+            appDelegate.window?.rootViewController = RootViewController()
+            appDelegate.window?.overrideUserInterfaceStyle = SettingsStore.shared.darkMode ? .dark : .light
+            appDelegate.window?.makeKeyAndVisible()
+        }
     }
 
     private func format(minutes: Int) -> String {

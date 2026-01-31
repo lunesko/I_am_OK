@@ -4,13 +4,19 @@ app = "i-am-ok-relay"
   dockerfile = "Dockerfile"
 
 [env]
-  RELAY_PORT = "40000"
-  MAX_PACKET_SIZE = "65507"
-  RATE_LIMIT_PPS = "100"
+  RELAY_PORT = "40100"
+  MAX_PACKET_SIZE = "64000"
+  RATE_LIMIT_PPS = "200"
   PEER_TTL_SECS = "300"
+  METRICS_INTERVAL_SECS = "60"
 
 [[services]]
-  internal_port = 40000
+  internal_port = 40100
   protocol = "udp"
+  # Keep at least one machine always running.
+  # For UDP relays, autostop often drops packets (UDP can't reliably "wake" sleeping machines).
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
   [[services.ports]]
-    port = 40000
+    port = 40100

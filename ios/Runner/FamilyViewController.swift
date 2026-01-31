@@ -51,6 +51,18 @@ final class FamilyViewController: UIViewController {
         addButton.addTarget(self, action: #selector(addContact), for: .touchUpInside)
         contentStack.addArrangedSubview(addButton)
 
+        let myQrButton = UIButton(type: .system)
+        myQrButton.setTitle("📱 Мій QR", for: .normal)
+        myQrButton.setTitleColor(.yaPrimary, for: .normal)
+        myQrButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
+        myQrButton.backgroundColor = .yaCard
+        myQrButton.layer.cornerRadius = 16
+        myQrButton.layer.borderWidth = 1
+        myQrButton.layer.borderColor = UIColor.yaBorder.cgColor
+        myQrButton.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        myQrButton.addTarget(self, action: #selector(openMyQr), for: .touchUpInside)
+        contentStack.addArrangedSubview(myQrButton)
+
         let feedbackCard = UIView()
         feedbackCard.backgroundColor = .yaPrimary
         feedbackCard.layer.cornerRadius = 20
@@ -154,6 +166,30 @@ final class FamilyViewController: UIViewController {
             self?.reloadContacts()
         }))
         present(alert, animated: true)
+    }
+
+    func openAddContact(prefillId: String) {
+        let alert = UIAlertController(title: "Додати людину", message: nil, preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = "Ім'я" }
+        alert.addTextField {
+            $0.placeholder = "ID (необов'язково)"
+            $0.text = prefillId
+            $0.isEnabled = false
+        }
+        alert.addAction(UIAlertAction(title: "Скасувати", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Додати", style: .default, handler: { [weak self] _ in
+            guard let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty else { return }
+            let contactId = prefillId
+            ContactStore.shared.addContact(Contact(id: contactId, name: name, lastCheckin: nil))
+            self?.reloadContacts()
+        }))
+        present(alert, animated: true)
+    }
+
+    @objc private func openMyQr() {
+        guard let identityId = CoreBridge.shared.getIdentityId() else { return }
+        present(QrCodeViewController(identityId: identityId), animated: true)
     }
 
     @objc private func sendFeedback() {

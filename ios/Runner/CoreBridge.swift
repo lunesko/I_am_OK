@@ -16,6 +16,9 @@ import Foundation
 @_silgen_name("ya_ok_import_packets_with_peer") private func ya_ok_import_packets_with_peer(_ json: UnsafePointer<CChar>, _ transport: Int32, _ address: UnsafePointer<CChar>) -> Int32
 @_silgen_name("ya_ok_import_messages") private func ya_ok_import_messages(_ json: UnsafePointer<CChar>) -> Int32
 @_silgen_name("ya_ok_mark_delivered") private func ya_ok_mark_delivered(_ messageId: UnsafePointer<CChar>) -> Int32
+@_silgen_name("ya_ok_wipe_local_data") private func ya_ok_wipe_local_data() -> Int32
+@_silgen_name("ya_ok_get_identity_x25519_public_key_hex") private func ya_ok_get_identity_x25519_public_key_hex() -> UnsafeMutablePointer<CChar>?
+@_silgen_name("ya_ok_add_peer") private func ya_ok_add_peer(_ peerId: UnsafePointer<CChar>, _ x25519Hex: UnsafePointer<CChar>) -> Int32
 
 final class CoreBridge {
     static let shared = CoreBridge()
@@ -99,6 +102,21 @@ final class CoreBridge {
         return data
     }
 
+    func getIdentityX25519PublicKeyHex() -> String? {
+        guard let ptr = ya_ok_get_identity_x25519_public_key_hex() else { return nil }
+        let value = String(cString: ptr)
+        ya_ok_free_string(ptr)
+        return value.isEmpty ? nil : value
+    }
+
+    func addPeer(peerId: String, x25519PublicKeyHex: String) -> Int32 {
+        return peerId.withCString { peer in
+            x25519PublicKeyHex.withCString { x in
+                ya_ok_add_peer(peer, x)
+            }
+        }
+    }
+
     func importPackets(packets: String) -> Int32 {
         return packets.withCString { cString in
             ya_ok_import_packets(cString)
@@ -123,6 +141,10 @@ final class CoreBridge {
         return messageId.withCString { cString in
             ya_ok_mark_delivered(cString)
         }
+    }
+
+    func wipeLocalData() -> Int32 {
+        ya_ok_wipe_local_data()
     }
 }
 

@@ -51,5 +51,16 @@
 	<array>
 		<string>_yaok-sync._tcp</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.poruch.ya_ok</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>yaok</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

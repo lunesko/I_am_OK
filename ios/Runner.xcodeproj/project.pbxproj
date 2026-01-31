@@ -27,6 +27,7 @@
 		A0C0B001000000000000000E /* PeerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C0A001000000000000000E /* PeerService.swift */; };
 		A0C0B001000000000000000F /* UdpService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C0A001000000000000000F /* UdpService.swift */; };
 		A0C0B0010000000000000010 /* TransportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C0A0010000000000000010 /* TransportCoordinator.swift */; };
+		A0C0B0010000000000000011 /* QrCodeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0C0A0010000000000000011 /* QrCodeViewController.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -79,6 +80,7 @@
 		A0C0A001000000000000000E /* PeerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeerService.swift; sourceTree = "<group>"; };
 		A0C0A001000000000000000F /* UdpService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UdpService.swift; sourceTree = "<group>"; };
 		A0C0A0010000000000000010 /* TransportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportCoordinator.swift; sourceTree = "<group>"; };
+		A0C0A0010000000000000011 /* QrCodeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QrCodeViewController.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				A0C0A0010000000000000008 /* MainViewController.swift */,
 				A0C0A001000000000000000C /* InboxViewController.swift */,
 				A0C0A0010000000000000009 /* FamilyViewController.swift */,
+				A0C0A0010000000000000011 /* QrCodeViewController.swift */,
 				A0C0A001000000000000000A /* SettingsViewController.swift */,
 				A0C0A001000000000000000B /* SuccessViewController.swift */,
 				A0C0A001000000000000000D /* NotificationManager.swift */,
@@ -327,6 +330,7 @@
 				A0C0B0010000000000000008 /* MainViewController.swift in Sources */,
 				A0C0B001000000000000000C /* InboxViewController.swift in Sources */,
 				A0C0B0010000000000000009 /* FamilyViewController.swift in Sources */,
+				A0C0B0010000000000000011 /* QrCodeViewController.swift in Sources */,
 				A0C0B001000000000000000A /* SettingsViewController.swift in Sources */,
 				A0C0B001000000000000000B /* SuccessViewController.swift in Sources */,
 				A0C0B001000000000000000D /* NotificationManager.swift in Sources */,

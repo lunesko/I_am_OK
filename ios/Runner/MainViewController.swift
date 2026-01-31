@@ -1,4 +1,5 @@
 import UIKit
+import CoreLocation
 import AVFoundation
 
 final class MainViewController: UIViewController, AVAudioRecorderDelegate {
@@ -12,6 +13,7 @@ final class MainViewController: UIViewController, AVAudioRecorderDelegate {
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
     private let lastCheckinLabel = UILabel()
+    private let locationWarningLabel = UILabel()
     private let textField = UITextField()
     private let recordButton = UIButton(type: .system)
     private let clearVoiceButton = UIButton(type: .system)
@@ -28,6 +30,7 @@ final class MainViewController: UIViewController, AVAudioRecorderDelegate {
         setupLayout()
         updateLastCheckin()
         updateStatus(.ok)
+        updateLocationWarning()
     }
 
     private func setupLayout() {
@@ -168,14 +171,12 @@ final class MainViewController: UIViewController, AVAudioRecorderDelegate {
         shield.textColor = .yaWarning
         shield.font = .systemFont(ofSize: 14)
 
-        let warning = UILabel()
-        warning.text = "Геолокація вимкнена. Не використовуй біля позицій."
-        warning.font = .systemFont(ofSize: 13)
-        warning.textColor = .yaTextSecondary
-        warning.numberOfLines = 0
+        locationWarningLabel.font = .systemFont(ofSize: 13)
+        locationWarningLabel.textColor = .yaTextSecondary
+        locationWarningLabel.numberOfLines = 0
 
         footer.addArrangedSubview(shield)
-        footer.addArrangedSubview(warning)
+        footer.addArrangedSubview(locationWarningLabel)
 
         let footerContainer = UIView()
         footerContainer.backgroundColor = .yaCard
@@ -223,6 +224,19 @@ final class MainViewController: UIViewController, AVAudioRecorderDelegate {
 
     @objc private func openSettings() {
         tabBarController?.selectedIndex = 3
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        updateLocationWarning()
+    }
+
+    private func updateLocationWarning() {
+        // This does NOT request permissions; it only reflects the system Location toggle.
+        let enabled = CLLocationManager.locationServicesEnabled()
+        locationWarningLabel.text = enabled
+            ? "Геолокація увімкнена. Рекомендуємо вимкнути біля позицій."
+            : "Геолокація вимкнена. Не використовуй біля позицій."
     }
 
     @objc private func statusTapped(_ sender: StatusCardView) {

@@ -8,56 +8,79 @@ struct RateEntry {
     count: u32,
 }
 
+#[derive(Default)]
+struct Stats {
+    received: u64,
+    forwarded: u64,
+    dropped_rate: u64,
+    dropped_size: u64,
+}
+
 fn main() -> std::io::Result<()> {
     let port = env::var("RELAY_PORT")
         .ok()
         .and_then(|v| v.parse::<u16>().ok())
-        .unwrap_or(40000);
+        .unwrap_or(40100);
 
     let max_packet = env::var("MAX_PACKET_SIZE")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(65_507); // UDP safe max
+        .unwrap_or(64_000);
 
     let rate_limit = env::var("RATE_LIMIT_PPS")
         .ok()
         .and_then(|v| v.parse::<u32>().ok())
-        .unwrap_or(100);
+        .unwrap_or(200);
 
     let peer_ttl = env::var("PEER_TTL_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(300);
 
-    let bind_addr = env::var("RELAY_BIND").unwrap_or_else(|_| {
-        if env::var("FLY_APP_NAME").is_ok() {
-            format!("fly-global-services:{}", port)
-        } else {
-            format!("0.0.0.0:{}", port)
-        }
-    });
+    let metrics_interval_secs = env::var("METRICS_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(60);
 
-    let socket = UdpSocket::bind(&bind_addr)?;
+    // IMPORTANT:
+    // Bind to a local interface address (0.0.0.0) by default.
+    // Using a DNS name here (e.g. "fly-global-services") can fail on some platforms/providers
+    // and cause crash-restart loops.
+    let bind_addr = env::var("RELAY_BIND").unwrap_or_else(|_| format!("0.0.0.0:{}", port));
+
+    let socket = match UdpSocket::bind(&bind_addr) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("failed to bind relay socket on {}: {}", bind_addr, err);
+            return Err(err);
+        }
+    };
     socket.set_nonblocking(true)?;
     socket.set_read_timeout(Some(Duration::from_millis(500)))?;
 
     println!(
-        "yaok-relay listening on {}, max_packet={}, rate_limit_pps={}, peer_ttl={}s",
-        bind_addr, max_packet, rate_limit, peer_ttl
+        "yaok-relay listening on {}, max_packet={}, rate_limit_pps={}, peer_ttl={}s, metrics_interval={}s",
+        bind_addr, max_packet, rate_limit, peer_ttl, metrics_interval_secs
     );
 
     let mut peers: HashMap<SocketAddr, Instant> = HashMap::new();
     let mut rate: HashMap<IpAddr, RateEntry> = HashMap::new();
     let mut buf = vec![0u8; max_packet];
+    let mut stats = Stats::default();
+    let metrics_interval = Duration::from_secs(metrics_interval_secs);
+    let mut last_metrics = Instant::now();
 
     loop {
         match socket.recv_from(&mut buf) {
             Ok((len, src)) => {
+                stats.received += 1;
                 if len == 0 || len > max_packet {
+                    stats.dropped_size += 1;
                     continue;
                 }
 
                 if !allow_packet(&mut rate, src.ip(), rate_limit) {
+                    stats.dropped_rate += 1;
                     continue;
                 }
 
@@ -68,16 +91,32 @@ fn main() -> std::io::Result<()> {
                     if *peer == src {
                         continue;
                     }
-                    let _ = socket.send_to(&buf[..len], peer);
+                    if socket.send_to(&buf[..len], peer).is_ok() {
+                        stats.forwarded += 1;
+                    }
                 }
             }
             Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
                 cleanup_peers(&mut peers, peer_ttl);
+                std::thread::sleep(Duration::from_millis(20));
                 continue;
             }
             Err(err) => {
                 eprintln!("recv error: {}", err);
             }
+        }
+
+        if last_metrics.elapsed() >= metrics_interval {
+            println!(
+                "metrics: received={}, forwarded={}, dropped_rate={}, dropped_size={}, peers={}",
+                stats.received,
+                stats.forwarded,
+                stats.dropped_rate,
+                stats.dropped_size,
+                peers.len()
+            );
+            stats = Stats::default();
+            last_metrics = Instant::now();
         }
     }
 }

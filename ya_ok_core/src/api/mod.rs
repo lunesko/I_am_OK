@@ -20,6 +20,7 @@ use std::slice;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
 use once_cell::sync::Lazy;
+use std::fs;
 
 const IDENTITY_FILENAME: &str = "ya_ok_identity.json";
 const DB_FILENAME: &str = "ya_ok.db";
@@ -107,6 +108,100 @@ fn parse_transport_type(value: c_int) -> TransportType {
     }
 }
 
+fn parse_hex_32(hex_str: &str) -> Result<[u8; 32], ApiError> {
+    let bytes = hex::decode(hex_str).map_err(|_| ApiError::InvalidParameters)?;
+    if bytes.len() != 32 {
+        return Err(ApiError::InvalidParameters);
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    Ok(out)
+}
+
+/// Получить X25519 публичный ключ текущей идентичности (hex).
+#[no_mangle]
+pub extern "C" fn ya_ok_get_identity_x25519_public_key_hex() -> *mut c_char {
+    let state = match get_core_state() {
+        Ok(state) => state,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let identity_lock = state.identity.try_read().unwrap();
+    let identity = match &*identity_lock {
+        Some(id) => id,
+        None => return std::ptr::null_mut(),
+    };
+
+    let x = match identity.x25519_public_bytes() {
+        Some(b) => b,
+        None => return std::ptr::null_mut(),
+    };
+
+    let c_string = CString::new(hex::encode(x)).unwrap_or_else(|_| CString::new("").unwrap());
+    c_string.into_raw()
+}
+
+/// Добавить (зарегистрировать) известного пира по его ID (hex ed25519 pubkey) и X25519 pubkey (hex).
+///
+/// Это нужно для первичного обмена ключами (например через QR) до того, как пир пришлёт первый пакет.
+#[no_mangle]
+pub extern "C" fn ya_ok_add_peer(peer_id: *const c_char, x25519_public_key_hex: *const c_char) -> c_int {
+    let state = match get_core_state() {
+        Ok(state) => state,
+        Err(_) => return -1,
+    };
+
+    let peer_id = unsafe {
+        if peer_id.is_null() {
+            return -7;
+        }
+        CStr::from_ptr(peer_id)
+    };
+    let peer_id_str = match peer_id.to_str() {
+        Ok(s) if !s.trim().is_empty() => s.trim(),
+        _ => return -8,
+    };
+
+    let x_hex = unsafe {
+        if x25519_public_key_hex.is_null() {
+            return -7;
+        }
+        CStr::from_ptr(x25519_public_key_hex)
+    };
+    let x_hex_str = match x_hex.to_str() {
+        Ok(s) if !s.trim().is_empty() => s.trim(),
+        _ => return -8,
+    };
+
+    // peer_id is hex of ed25519 public key in this project. Validate shape and store bytes too.
+    let ed_bytes = match hex::decode(peer_id_str) {
+        Ok(b) if b.len() == 32 => b,
+        _ => return -10, // INVALID_PEER_ID
+    };
+
+    let x_bytes = match parse_hex_32(x_hex_str) {
+        Ok(b) => b.to_vec(),
+        Err(_) => return -10,
+    };
+
+    let handle = RUNTIME.handle();
+    let peer = Peer {
+        id: peer_id_str.to_string(),
+        transport_type: TransportType::Udp,
+        address: String::new(),
+        last_seen: chrono::Utc::now(),
+        signal_strength: None,
+        ed25519_public_key: Some(ed_bytes),
+        x25519_public_key: Some(x_bytes),
+    };
+
+    let _ = handle.block_on(async {
+        state.router.update_peers(vec![peer]).await;
+    });
+
+    0
+}
+
 /// Инициализация ядра
 #[no_mangle]
 pub extern "C" fn ya_ok_core_init() -> c_int {
@@ -150,6 +245,39 @@ pub extern "C" fn ya_ok_core_init_with_path(base_dir: *const c_char) -> c_int {
         }
         Err(_) => -1,
     }
+}
+
+/// Экстренное удаление локальных данных (identity + db) и сброс in-memory состояния.
+///
+/// ВАЖНО: это не "удаление приложения", а очистка локальных данных на устройстве.
+#[no_mangle]
+pub extern "C" fn ya_ok_wipe_local_data() -> c_int {
+    // Сначала вычисляем пути, потом сбрасываем состояние (чтобы закрыть файлы),
+    // и только затем удаляем файлы с диска.
+    let (identity_path, db_path) = {
+        let state = match get_core_state() {
+            Ok(state) => state,
+            Err(_) => return -1,
+        };
+        let base = state
+            .identity_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        (state.identity_path.clone(), base.join(DB_FILENAME))
+    };
+
+    unsafe {
+        CORE_STATE = None;
+    }
+
+    // Best-effort deletes
+    let _ = fs::remove_file(&identity_path);
+    let _ = fs::remove_file(&db_path);
+    let _ = fs::remove_file(PathBuf::from(format!("{}-wal", db_path.to_string_lossy())));
+    let _ = fs::remove_file(PathBuf::from(format!("{}-shm", db_path.to_string_lossy())));
+
+    0
 }
 
 /// Создать новую идентичность
@@ -625,17 +753,27 @@ pub extern "C" fn ya_ok_export_pending_packets(limit: c_int) -> *mut c_char {
         None => return std::ptr::null_mut(),
     };
 
-    // Создаем пакеты для каждого сообщения
-    let mut packets = Vec::new();
+    // Создаем пакеты для каждого сообщения и каждого известного пира с X25519 ключом.
+    // Если список пиров пуст (или без X25519), то мы НЕ создаём пакеты, т.к. получатели не смогут их расшифровать.
+    let handle = RUNTIME.handle();
+    let known_peers = handle.block_on(async { state.router.known_peers().read().await.clone() });
+
+    let mut packets: Vec<Vec<u8>> = Vec::new();
     for stored in pending.into_iter().take(limit) {
-        if let Ok(message) = serde_json::from_slice::<Message>(&stored.message_data) {
-            // Для каждого известного пира создаем отдельный Packet
-            // Пока что используем свой ключ (временное решение)
-            if let Some(receiver_key) = identity.x25519_public_bytes() {
-                if let Ok(packet) = Packet::from_message(&message, identity, &receiver_key) {
-                    if let Ok(packet_bytes) = packet.to_bytes() {
-                        packets.push(packet_bytes);
-                    }
+        let Ok(message) = serde_json::from_slice::<Message>(&stored.message_data) else {
+            continue;
+        };
+
+        for peer in known_peers.values() {
+            let Some(x_key) = peer.x25519_public_key.as_ref() else {
+                continue;
+            };
+            if x_key.len() != 32 {
+                continue;
+            }
+            if let Ok(packet) = Packet::from_message(&message, identity, x_key) {
+                if let Ok(packet_bytes) = packet.to_bytes() {
+                    packets.push(packet_bytes);
                 }
             }
         }

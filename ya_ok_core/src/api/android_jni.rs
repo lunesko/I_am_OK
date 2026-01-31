@@ -153,6 +153,57 @@ pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getStats(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getIdentityX25519PublicKeyHex(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    let ptr = ya_ok_get_identity_x25519_public_key_hex();
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let c_str = unsafe { CStr::from_ptr(ptr) };
+    let java_str = match env.new_string(c_str.to_string_lossy().as_ref()) {
+        Ok(s) => s,
+        Err(_) => {
+            ya_ok_free_string(ptr);
+            return std::ptr::null_mut();
+        }
+    };
+
+    ya_ok_free_string(ptr);
+    java_str.into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_addPeer(
+    mut env: JNIEnv,
+    _class: JClass,
+    peer_id: JString,
+    x25519_public_key_hex: JString,
+) -> jint {
+    let peer_id: String = match env.get_string(&peer_id) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+    let x_hex: String = match env.get_string(&x25519_public_key_hex) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+
+    let c_peer_id = match CString::new(peer_id) {
+        Ok(s) => s,
+        Err(_) => return -8,
+    };
+    let c_x = match CString::new(x_hex) {
+        Ok(s) => s,
+        Err(_) => return -8,
+    };
+
+    ya_ok_add_peer(c_peer_id.as_ptr(), c_x.as_ptr()) as jint
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getRecentMessages(
     env: JNIEnv,
     _class: JClass,
@@ -332,4 +383,12 @@ pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_markDelivered(
     };
 
     ya_ok_mark_delivered(c_id.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_wipeLocalData(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jint {
+    ya_ok_wipe_local_data() as jint
 }

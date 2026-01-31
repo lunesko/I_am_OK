@@ -39,12 +39,6 @@ final class TransportCoordinator {
         guard let data = packets.data(using: .utf8), !packets.isEmpty else { return }
         peerService.send(data: data)
         udpService.send(data: data)
-
-        // Временно сохраняем совместимость: помечаем отправленные сообщения как доставленные
-        let json = CoreBridge.shared.exportPendingMessages(limit: 50)
-        if json.count > 2 {
-            markDelivered(json: json)
-        }
     }
 
     private func handleIncoming(data: Data, transportType: Int32, address: String) {

@@ -11,8 +11,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.fragment.app.Fragment
+import app.poruch.ya_ok.MainActivity
 import app.poruch.ya_ok.R
+import app.poruch.ya_ok.core.CoreGateway
 import app.poruch.ya_ok.data.AppPreferences
+import app.poruch.ya_ok.transport.TransportService
 import com.google.android.material.switchmaterial.SwitchMaterial
 import java.util.Calendar
 
@@ -52,6 +55,10 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
         view.findViewById<View>(R.id.supportButton).setOnClickListener {
             openSupportLink()
+        }
+
+        view.findViewById<View>(R.id.wipeCard).setOnClickListener {
+            confirmWipe()
         }
 
         refreshSummaries()
@@ -102,6 +109,57 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
         if (intent.resolveActivity(pm) == null) {
             Toast.makeText(requireContext(), supportUrl, Toast.LENGTH_LONG).show()
             return
+        }
+        startActivity(intent)
+    }
+
+    private fun confirmWipe() {
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.wipe_confirm_title))
+            .setMessage(getString(R.string.wipe_confirm_message))
+            .setNegativeButton(getString(R.string.wipe_confirm_no), null)
+            .setNeutralButton(getString(R.string.wipe_uninstall)) { _, _ ->
+                openUninstall()
+            }
+            .setPositiveButton(getString(R.string.wipe_confirm_yes)) { _, _ ->
+                performWipe()
+            }
+            .show()
+    }
+
+    private fun openUninstall() {
+        val pkg = requireContext().packageName
+        val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$pkg"))
+        val pm = requireContext().packageManager
+        if (intent.resolveActivity(pm) != null) {
+            startActivity(intent)
+        } else {
+            Toast.makeText(requireContext(), pkg, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun performWipe() {
+        // Stop transports first.
+        requireContext().stopService(Intent(requireContext(), TransportService::class.java))
+
+        // Clear app prefs (contacts/settings/etc).
+        runCatching {
+            requireContext().getSharedPreferences("ya_ok_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().clear().apply()
+        }
+
+        // Wipe core persisted state and reset in-memory core state.
+        val result = CoreGateway.wipeLocalData()
+        if (result != 0) {
+            Toast.makeText(requireContext(), "Помилка очищення ($result)", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        Toast.makeText(requireContext(), getString(R.string.wipe_done), Toast.LENGTH_SHORT).show()
+
+        // Restart app to re-init core and go to onboarding.
+        val intent = Intent(requireContext(), MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }
         startActivity(intent)
     }

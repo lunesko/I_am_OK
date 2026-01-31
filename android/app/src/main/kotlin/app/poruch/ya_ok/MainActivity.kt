@@ -8,19 +8,32 @@ import app.poruch.ya_ok.core.CoreGateway
 import app.poruch.ya_ok.ui.AppTheme
 import app.poruch.ya_ok.ui.FamilyFragment
 import app.poruch.ya_ok.ui.InboxFragment
+import app.poruch.ya_ok.ui.LockFragment
 import app.poruch.ya_ok.ui.MainFragment
 import app.poruch.ya_ok.ui.Navigator
 import app.poruch.ya_ok.ui.OnboardingFragment
 import app.poruch.ya_ok.ui.SettingsFragment
 import app.poruch.ya_ok.ui.SuccessFragment
 import app.poruch.ya_ok.transport.TransportService
+import app.poruch.ya_ok.security.AppLock
 import android.Manifest
+import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import androidx.biometric.BiometricPrompt
 
 class MainActivity : AppCompatActivity(), Navigator {
     private var permissionsGranted = false
+    private var pendingAddContactId: String? = null
+
+    private var isUnlocked: Boolean = false
+    private var unlockInProgress: Boolean = false
+    private var postUnlockAction: (() -> Unit)? = null
+
+    private companion object {
+        private const val LOCK_TAG = "lock_fragment"
+    }
     
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -44,6 +57,7 @@ class MainActivity : AppCompatActivity(), Navigator {
             return
         }
 
+        handleIncomingIntent(intent)
         requestNotificationPermission()
         requestBluetoothPermissions()
 
@@ -51,7 +65,41 @@ class MainActivity : AppCompatActivity(), Navigator {
             if (CoreGateway.getIdentityId() == null) {
                 showOnboarding()
             } else {
-                showMain()
+                postUnlockAction = { showMain() }
+                startUnlockIfNeeded()
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Re-lock when the app returns from background.
+        if (CoreGateway.getIdentityId() != null && !isUnlocked) {
+            startUnlockIfNeeded()
+        }
+    }
+
+    override fun onStop() {
+        // Require auth next time we return to foreground.
+        if (CoreGateway.getIdentityId() != null) {
+            isUnlocked = false
+        }
+        super.onStop()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+
+        // If we're already running and received a deep link, navigate immediately.
+        val addId = pendingAddContactId
+        if (!addId.isNullOrBlank()) {
+            if (CoreGateway.getIdentityId() == null) {
+                showOnboarding()
+            } else {
+                postUnlockAction = { showFamily(addId) }
+                startUnlockIfNeeded()
             }
         }
     }
@@ -70,8 +118,7 @@ class MainActivity : AppCompatActivity(), Navigator {
             val permissions = arrayOf(
                 Manifest.permission.BLUETOOTH_SCAN,
                 Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_ADVERTISE,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.BLUETOOTH_ADVERTISE
             )
             val missing = permissions.filter {
                 ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -99,6 +146,13 @@ class MainActivity : AppCompatActivity(), Navigator {
             supportFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
         }
         showFragment(MainFragment(), addToBackStack = false)
+
+        // Deep link: open "add contact" flow if requested.
+        val addId = pendingAddContactId
+        if (!addId.isNullOrBlank()) {
+            pendingAddContactId = null
+            showFamily(addId)
+        }
     }
 
     override fun showSuccess() {
@@ -109,8 +163,8 @@ class MainActivity : AppCompatActivity(), Navigator {
         showFragment(InboxFragment(), addToBackStack = true)
     }
 
-    override fun showFamily() {
-        showFragment(FamilyFragment(), addToBackStack = true)
+    override fun showFamily(addContactId: String?) {
+        showFragment(FamilyFragment.newInstance(addContactId), addToBackStack = true)
     }
 
     override fun showSettings() {
@@ -130,5 +184,93 @@ class MainActivity : AppCompatActivity(), Navigator {
             }
             commit()
         }
+    }
+
+    fun retryUnlock() {
+        if (CoreGateway.getIdentityId() == null) return
+        startUnlockIfNeeded(force = true)
+    }
+
+    private fun startUnlockIfNeeded(force: Boolean = false) {
+        if (CoreGateway.getIdentityId() == null) return
+        if (isUnlocked && !force) {
+            hideLockScreen()
+            return
+        }
+        if (unlockInProgress) return
+        unlockInProgress = true
+
+        showLockScreen()
+
+        if (!AppLock.isSupported(this)) {
+            // Can't prompt (no biometrics / no device credential). Allow app to continue.
+            isUnlocked = true
+            unlockInProgress = false
+            hideLockScreen()
+            postUnlockAction?.invoke()
+            postUnlockAction = null
+            return
+        }
+
+        AppLock.authenticate(
+            activity = this,
+            title = "Розблокувати",
+            subtitle = "Підтвердіть біометрією або PIN/паролем телефону",
+            onSuccess = {
+                isUnlocked = true
+                unlockInProgress = false
+                hideLockScreen()
+                postUnlockAction?.invoke()
+                postUnlockAction = null
+            },
+            onFailureOrError = { errorCode, message ->
+                unlockInProgress = false
+                // Keep app locked on cancel/error; allow retry from lock screen.
+                val isCancel =
+                    errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                        errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                        errorCode == BiometricPrompt.ERROR_CANCELED
+                if (!isCancel && !message.isNullOrBlank()) {
+                    Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                }
+                showLockScreen()
+            }
+        )
+    }
+
+    private fun showLockScreen() {
+        val fm = supportFragmentManager
+        if (fm.findFragmentByTag(LOCK_TAG) != null) return
+        fm.beginTransaction().apply {
+            setReorderingAllowed(true)
+            // Add (not replace) so we don't lose current screen state.
+            add(R.id.mainContainer, LockFragment(), LOCK_TAG)
+            commit()
+        }
+    }
+
+    private fun hideLockScreen() {
+        val fm = supportFragmentManager
+        val lock = fm.findFragmentByTag(LOCK_TAG) ?: return
+        fm.beginTransaction().apply {
+            setReorderingAllowed(true)
+            remove(lock)
+            commit()
+        }
+    }
+
+    private fun handleIncomingIntent(intent: android.content.Intent?) {
+        val addId = extractAddContactId(intent)
+        if (!addId.isNullOrBlank()) {
+            pendingAddContactId = addId
+        }
+    }
+
+    private fun extractAddContactId(intent: android.content.Intent?): String? {
+        val data: Uri = intent?.data ?: return null
+        if (!data.scheme.equals("yaok", ignoreCase = true)) return null
+        if (!data.host.equals("add", ignoreCase = true)) return null
+        val id = data.getQueryParameter("id") ?: data.lastPathSegment
+        return id?.trim()?.takeIf { it.isNotBlank() }
     }
 }

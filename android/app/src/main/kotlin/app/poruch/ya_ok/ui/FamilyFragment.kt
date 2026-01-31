@@ -21,6 +21,19 @@ import com.google.android.material.button.MaterialButton
 
 class FamilyFragment : Fragment(R.layout.fragment_family) {
     private lateinit var contactsContainer: LinearLayout
+    private var initialAddContactId: String? = null
+
+    companion object {
+        private const val ARG_ADD_CONTACT_ID = "add_contact_id"
+
+        fun newInstance(addContactId: String?): FamilyFragment {
+            return FamilyFragment().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_ADD_CONTACT_ID, addContactId)
+                }
+            }
+        }
+    }
     
     private val qrScannerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -28,9 +41,19 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val scannedId = result.data?.getStringExtra("scanned_id")
             if (!scannedId.isNullOrBlank()) {
-                showAddContactDialogWithId(scannedId)
+                val parsed = parseContactQr(scannedId)
+                // Register peer keys in core if present (enables decryptable packets).
+                parsed.x25519Hex?.let { x ->
+                    CoreGateway.addPeer(parsed.id, x)
+                }
+                showAddContactDialogWithId(parsed.id)
             }
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        initialAddContactId = arguments?.getString(ARG_ADD_CONTACT_ID)?.takeIf { it.isNotBlank() }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -59,6 +82,12 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
         }
 
         renderContacts()
+
+        // Deep link / prefill: open "add contact" dialog.
+        initialAddContactId?.let { addId ->
+            initialAddContactId = null
+            view.post { showAddContactDialogWithId(addId) }
+        }
     }
 
     private fun renderContacts() {
@@ -130,5 +159,31 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
             }
             .setNegativeButton("Скасувати", null)
             .show()
+    }
+
+    private fun normalizeContactId(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.startsWith("yaok://", ignoreCase = true)) {
+            val uri = runCatching { android.net.Uri.parse(trimmed) }.getOrNull()
+            val fromQuery = uri?.getQueryParameter("id")?.trim()
+            if (!fromQuery.isNullOrBlank()) return fromQuery
+            val last = uri?.lastPathSegment?.trim()
+            if (!last.isNullOrBlank() && !last.equals("add", ignoreCase = true)) return last
+        }
+        return trimmed
+    }
+
+    private data class ContactQr(val id: String, val x25519Hex: String?)
+
+    private fun parseContactQr(raw: String): ContactQr {
+        val trimmed = raw.trim()
+        if (trimmed.startsWith("yaok://", ignoreCase = true)) {
+            val uri = runCatching { android.net.Uri.parse(trimmed) }.getOrNull()
+            val id = uri?.getQueryParameter("id")?.trim().orEmpty()
+            val x = uri?.getQueryParameter("x")?.trim()
+            val normalizedId = if (id.isNotBlank()) id else normalizeContactId(trimmed)
+            return ContactQr(normalizedId, x?.takeIf { it.isNotBlank() })
+        }
+        return ContactQr(normalizeContactId(trimmed), null)
     }
 }

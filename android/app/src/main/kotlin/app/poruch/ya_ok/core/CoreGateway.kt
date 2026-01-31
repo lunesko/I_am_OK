@@ -7,6 +7,8 @@ object CoreGateway {
     fun init(context: Context): Int = YaOkCore.initWithPath(context.filesDir.absolutePath)
 
     fun getIdentityId(): String? = YaOkCore.getIdentityId()
+    fun getIdentityX25519PublicKeyHex(): String? = YaOkCore.getIdentityX25519PublicKeyHex()
+    fun addPeer(peerId: String, x25519PublicKeyHex: String): Int = YaOkCore.addPeer(peerId, x25519PublicKeyHex)
 
     fun ensureIdentity(): Boolean {
         if (YaOkCore.getIdentityId() != null) return true
@@ -35,4 +37,6 @@ object CoreGateway {
     fun importMessages(json: String): Int = YaOkCore.importMessages(json)
 
     fun markDelivered(messageId: String): Int = YaOkCore.markDelivered(messageId)
+
+    fun wipeLocalData(): Int = YaOkCore.wipeLocalData()
 }

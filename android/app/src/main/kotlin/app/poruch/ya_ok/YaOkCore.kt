@@ -16,6 +16,8 @@ object YaOkCore {
     @JvmStatic external fun stopListening(): Int
     @JvmStatic external fun setPolicy(policyType: Int): Int
     @JvmStatic external fun getStats(): String?
+    @JvmStatic external fun getIdentityX25519PublicKeyHex(): String?
+    @JvmStatic external fun addPeer(peerId: String, x25519PublicKeyHex: String): Int
     @JvmStatic external fun getRecentMessages(limit: Int): String?
     @JvmStatic external fun getRecentMessagesFull(limit: Int): String?
     @JvmStatic external fun exportPendingPackets(limit: Int): String?
@@ -24,4 +26,5 @@ object YaOkCore {
     @JvmStatic external fun importPacketsWithPeer(packetsBase64: String, transportType: Int, address: String): Int
     @JvmStatic external fun importMessages(json: String): Int
     @JvmStatic external fun markDelivered(messageId: String): Int
+    @JvmStatic external fun wipeLocalData(): Int
 }

@@ -5,7 +5,7 @@ interface Navigator {
     fun showMain(clearBackStack: Boolean = false)
     fun showSuccess()
     fun showInbox()
-    fun showFamily()
+    fun showFamily(addContactId: String? = null)
     fun showSettings()
     fun navigateBack()
 }

@@ -13,6 +13,7 @@
     <string name="send_button">Відправити</string>
     <string name="last_checkin_format">🕐 Останній раз: %s</string>
     <string name="warning_no_geo">Геолокація вимкнена. Не використовуй біля позицій.</string>
+    <string name="warning_geo_on">Геолокація увімкнена. Рекомендуємо вимкнути біля позицій.</string>
     <string name="text_hint">Короткий текст (до 256 символів)</string>
     <string name="voice_record">Запис голосу</string>
     <string name="voice_ready">Голос записано</string>
@@ -32,6 +33,17 @@
     <string name="support_title">Підтримати проєкт</string>
     <string name="support_desc">Я ОК — безкоштовний для військових та їх родин</string>
     <string name="support_button">Задонатити на ЗСУ</string>
+    <string name="wipe_title">Екстрене очищення</string>
+    <string name="wipe_desc">Видалити локальні дані на цьому пристрої (ID, базу, контакти)</string>
+    <string name="wipe_confirm_title">Екстрене очищення</string>
+    <string name="wipe_confirm_message">Це видалить локальні дані на цьому пристрої та поверне до онбордингу. Продовжити?</string>
+    <string name="wipe_confirm_yes">Очистити</string>
+    <string name="wipe_confirm_no">Скасувати</string>
+    <string name="wipe_uninstall">Видалити додаток</string>
+    <string name="wipe_done">Дані видалено</string>
+    <string name="lock_title">Додаток заблоковано</string>
+    <string name="lock_subtitle">Потрібно підтвердження біометрією або PIN/паролем телефону</string>
+    <string name="lock_button">Розблокувати</string>
     <string name="identity_label">Ідентичність: %s</string>
     <string name="inbox_title">Вхідні</string>
     <string name="inbox_empty">Поки немає повідомлень</string>
