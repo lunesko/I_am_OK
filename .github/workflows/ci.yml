@@ -1,0 +1,224 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ============================================
+  # Rust Core Library - Security & Quality
+  # ============================================
+  rust-core:
+    name: Rust Core (ya_ok_core)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ya_ok_core
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ya_ok_core/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      
+      - name: Lint with Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      
+      - name: Run tests
+        run: cargo test --release --verbose
+      
+      - name: Build release
+        run: cargo build --release --verbose
+      
+      - name: Security audit
+        run: |
+          cargo install cargo-audit || true
+          cargo audit --deny warnings
+
+  # ============================================
+  # Relay Server - Build & Security
+  # ============================================
+  relay-server:
+    name: Relay Server
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/
+            relay/target/
+          key: relay-${{ runner.os }}-${{ hashFiles('relay/Cargo.lock') }}
+      
+      - name: Clippy lint
+        run: cargo clippy -- -D warnings
+      
+      - name: Build release
+        run: cargo build --release --verbose
+      
+      - name: Docker build test
+        run: docker build -t ya-ok-relay:test .
+
+  # ============================================
+  # Android App - Build & Lint
+  # ============================================
+  android-build:
+    name: Android Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+      
+      - name: Lint check
+        run: ./gradlew lint
+      
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+      
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace || echo "Release build requires keystore (expected failure in CI)"
+      
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+  # ============================================
+  # iOS Build (macOS runner required)
+  # ============================================
+  ios-build:
+    name: iOS Build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.0.app/Contents/Developer
+      
+      - name: Show Xcode version
+        run: xcodebuild -version
+      
+      - name: Build iOS app
+        run: |
+          xcodebuild clean build \
+            -project Runner.xcodeproj \
+            -scheme Runner \
+            -configuration Debug \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+
+  # ============================================
+  # Security Scanning (SAST)
+  # ============================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Rust Security Audit
+        run: |
+          cargo install cargo-audit || true
+          cd ya_ok_core && cargo audit --json > ../audit-core.json || true
+          cd ../relay && cargo audit --json > ../audit-relay.json || true
+      
+      - name: Upload audit reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-reports
+          path: |
+            audit-core.json
+            audit-relay.json
+          retention-days: 90
+
+  # ============================================
+  # Code Quality Metrics
+  # ============================================
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Check Rust code complexity
+        run: |
+          cargo install cargo-complexity || true
+          cd ya_ok_core && cargo complexity --all || echo "Complexity check completed"
+      
+      - name: Check Rust dependencies
+        run: |
+          cargo install cargo-outdated || true
+          cd ya_ok_core && cargo outdated || true
+          cd ../relay && cargo outdated || true

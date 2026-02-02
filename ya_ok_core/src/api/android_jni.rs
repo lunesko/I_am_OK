@@ -203,6 +203,89 @@ pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_addPeer(
     ya_ok_add_peer(c_peer_id.as_ptr(), c_x.as_ptr()) as jint
 }
 
+// JNI wrappers for peer-store FFI
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_peerStoreAdd(
+    mut env: JNIEnv,
+    _class: JClass,
+    public_key_hex: JString,
+    meta: JString,
+) -> jint {
+    let pk: String = match env.get_string(&public_key_hex) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+    let meta_str: String = match env.get_string(&meta) {
+        Ok(s) => s.into(),
+        Err(_) => String::new(),
+    };
+
+    let c_pk = match CString::new(pk) { Ok(s) => s, Err(_) => return -8 };
+    let c_meta = match CString::new(meta_str) { Ok(s) => s, Err(_) => return -8 };
+
+    ya_ok_peer_store_add(c_pk.as_ptr(), c_meta.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_peerStoreList(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    let ptr = ya_ok_peer_store_list();
+    if ptr.is_null() { return std::ptr::null_mut(); }
+    let c_str = unsafe { CStr::from_ptr(ptr) };
+    let java_str = match env.new_string(c_str.to_string_lossy().as_ref()) {
+        Ok(s) => s,
+        Err(_) => { ya_ok_free_string(ptr); return std::ptr::null_mut(); }
+    };
+    ya_ok_free_string(ptr);
+    java_str.into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_peerStoreRemove(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: JString,
+) -> jint {
+    let id: String = match env.get_string(&id) { Ok(s) => s.into(), Err(_) => return -8 };
+    let c_id = match CString::new(id) { Ok(s) => s, Err(_) => return -8 };
+    ya_ok_peer_store_remove(c_id.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getAcksForMessage(
+    env: JNIEnv,
+    _class: JClass,
+    message_id: JString,
+) -> jstring {
+    let msg_id: String = match env.get_string(&message_id) { 
+        Ok(s) => s.into(), 
+        Err(_) => return std::ptr::null_mut() 
+    };
+    let c_msg_id = match CString::new(msg_id) { 
+        Ok(s) => s, 
+        Err(_) => return std::ptr::null_mut() 
+    };
+
+    let ptr = ya_ok_get_acks_for_message(c_msg_id.as_ptr());
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let c_str = unsafe { CStr::from_ptr(ptr) };
+    let java_str = match env.new_string(c_str.to_string_lossy().as_ref()) {
+        Ok(s) => s,
+        Err(_) => {
+            ya_ok_free_string(ptr);
+            return std::ptr::null_mut();
+        }
+    };
+
+    ya_ok_free_string(ptr);
+    java_str.into_raw()
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getRecentMessages(
     env: JNIEnv,

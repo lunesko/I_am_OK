@@ -161,7 +161,12 @@ final class FamilyViewController: UIViewController {
             guard let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !name.isEmpty else { return }
             let id = alert.textFields?.last?.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let contactId = (id?.isEmpty == false) ? id! : "local_\(Int(Date().timeIntervalSince1970))"
+            let contactId: String
+            if let id = id, !id.isEmpty {
+                contactId = id
+            } else {
+                contactId = "local_\(Int(Date().timeIntervalSince1970))"
+            }
             ContactStore.shared.addContact(Contact(id: contactId, name: name, lastCheckin: nil))
             self?.reloadContacts()
         }))

@@ -111,6 +111,8 @@ impl Gossip {
     }
 
     /// Проверить дайджест
+    /// Verify message digest matches actual message
+    #[allow(dead_code)] // Reserved for future sync protocol
     fn verify_digest(&self, digest: &MessageDigest, message: &Message) -> bool {
         if let Ok(computed_digest) = Self::create_digest(message) {
             computed_digest.hash == digest.hash

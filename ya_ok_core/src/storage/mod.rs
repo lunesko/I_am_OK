@@ -27,14 +27,31 @@ pub struct StoredMessage {
 }
 
 /// Локальное хранилище
+/// 
+/// # Thread Safety
+/// rusqlite::Connection is !Sync due to internal RefCell, but is Send.
+/// When wrapped in Arc<Mutex<Storage>>, it's safe to share across threads.
+/// This explicit Sync implementation is safe because Mutex guarantees exclusive access.
 pub struct Storage {
     conn: Connection,
 }
+
+// SAFETY: Storage is wrapped in Mutex in CoreState, so concurrent access is serialized
+unsafe impl Sync for Storage {}
 
 impl Storage {
     /// Создать новое хранилище
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, StorageError> {
         let conn = Connection::open(path)?;
+
+        // Enable WAL mode for better concurrency and crash recovery
+        conn.execute_batch("PRAGMA journal_mode=WAL")?;
+        
+        // Enable auto_vacuum=INCREMENTAL to prevent unbounded growth
+        conn.execute_batch("PRAGMA auto_vacuum=INCREMENTAL")?;
+        
+        // Set page_size for better performance (must be set before tables created)
+        conn.execute_batch("PRAGMA page_size=4096")?;
 
         // Создаем таблицы
         conn.execute(
@@ -49,14 +66,9 @@ impl Storage {
             [],
         )?;
 
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sender ON messages(sender_id)",
-            [],
-        )?;
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_received ON messages(received_at)",
-            [],
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_sender ON messages(sender_id);
+             CREATE INDEX IF NOT EXISTS idx_received ON messages(received_at);"
         )?;
 
         // Создаем таблицу для seen message IDs (дедупликация)
@@ -68,6 +80,22 @@ impl Storage {
             [],
         )?;
 
+        // Создаем таблицу для ACK
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS acks (
+                message_id TEXT NOT NULL,
+                ack_from TEXT NOT NULL,
+                ack_type TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                PRIMARY KEY (message_id, ack_from, ack_type)
+            )",
+            [],
+        )?;
+
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_acks_message ON acks(message_id)"
+        )?;
+
         Ok(Self { conn })
     }
 
@@ -77,11 +105,29 @@ impl Storage {
     }
 
     /// Сохранить сообщение с флагом доставки
+    /// 
+    /// # Security Note
+    /// **SIGNATURE VERIFICATION**: Вызывающий код должен убедиться, что сообщение прошло проверку подписи.
+    /// - Для сообщений из сети: подпись ОБЯЗАТЕЛЬНО проверяется в `Packet::decrypt()` (строка 135)
+    /// - Для локальных сообщений: проверка не требуется (создатель = отправитель)
+    /// 
+    /// **ARCHITECTURE**:
+    /// ```text
+    /// Network -> Packet::decrypt() -> [SIGNATURE VERIFIED] -> store_message_with_delivered()
+    /// Local   -> create_message()  -> [TRUSTED SOURCE]     -> store_message_with_delivered()
+    /// ```
+    /// 
+    /// **CRITICAL**: Никогда не вызывайте эту функцию напрямую для сообщений из ненадежных источников!
+    /// Все сообщения из сети ДОЛЖНЫ пройти через `Packet::decrypt()` для проверки подписи.
     pub fn store_message_with_delivered(&self, message: &Message, delivered: bool) -> Result<(), StorageError> {
         // Проверяем, не видели ли уже это сообщение
         if self.is_message_seen(&message.id)? {
             return Ok(()); // Уже видели, игнорируем
         }
+
+        // Валидируем содержимое сообщения (размеры, форматы)
+        message.validate()
+            .map_err(|e| StorageError::ValidationFailed(e.to_string()))?;
 
         // Сериализуем сообщение
         let message_data = serde_json::to_vec(message)
@@ -153,6 +199,13 @@ impl Storage {
 
     /// Получить сообщение по ID
     pub fn get_message_by_id(&self, id: &str) -> Result<Option<Message>, StorageError> {
+        // Validate UUID format to prevent SQL injection from untrusted input
+        if let Err(_) = uuid::Uuid::parse_str(id) {
+            return Err(StorageError::InvalidInput(
+                format!("Invalid UUID format: {}", id)
+            ));
+        }
+
         let mut stmt = self.conn.prepare(
             "SELECT message_data FROM messages WHERE message_id = ?"
         )?;
@@ -228,6 +281,39 @@ impl Storage {
         Ok(())
     }
 
+    /// Сохранить ACK для сообщения
+    pub fn store_ack(&self, message_id: &str, ack_from: &str, ack_type: &str) -> Result<(), StorageError> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO acks (message_id, ack_from, ack_type, timestamp) VALUES (?, ?, ?, ?)",
+            (message_id, ack_from, ack_type, Utc::now().to_rfc3339()),
+        )?;
+
+        // Если получили Delivered ACK, обновляем статус сообщения
+        if ack_type == "Delivered" {
+            self.mark_delivered(message_id)?;
+        }
+
+        Ok(())
+    }
+
+    /// Получить все ACK для сообщения
+    pub fn get_acks_for_message(&self, message_id: &str) -> Result<Vec<(String, String, String)>, StorageError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ack_from, ack_type, timestamp FROM acks WHERE message_id = ? ORDER BY timestamp ASC"
+        )?;
+
+        let acks = stmt.query_map([message_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+
+        acks.collect::<SqlResult<Vec<_>>>()
+            .map_err(StorageError::DatabaseError)
+    }
+
     /// Очистить истекшие сообщения
     pub fn cleanup_expired(&self) -> Result<usize, StorageError> {
         let now = Utc::now();
@@ -245,6 +331,11 @@ impl Storage {
                 )?;
                 expired_count += 1;
             }
+        }
+
+        // Run incremental vacuum to reclaim space after deletions
+        if expired_count > 0 {
+            self.conn.execute_batch("PRAGMA incremental_vacuum")?;
         }
 
         Ok(expired_count)
@@ -297,4 +388,13 @@ pub enum StorageError {
 
     #[error("Deserialization failed")]
     DeserializationFailed,
+
+    #[error("Message validation failed: {0}")]
+    ValidationFailed(String),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
+
+#[cfg(test)]
+mod tests;

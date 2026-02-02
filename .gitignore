@@ -48,3 +48,75 @@ app.*.map.json
 
 # Windows
 Thumbs.db
+
+# =======================
+# SECURITY: Secrets & Keys
+# =======================
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Secrets directories
+secrets/
+.secrets/
+private/
+.private/
+
+# Keystore files (NEVER commit production keystores!)
+*.keystore
+*.jks
+!android/app/debug.keystore
+keystore.properties
+
+# Private keys
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+
+# Certificate files
+*.crt
+*.cer
+*.der
+
+# Configuration with secrets
+config/production.yml
+config/secrets.yml
+firebase-adminsdk-*.json
+google-services-production.json
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Logs with potential sensitive data
+logs/
+*.log
+
+# Debug artifacts
+core
+core.*
+*.dmp
+*.stackdump
+
+# CI/CD secrets
+.github/secrets/
+.gitlab-ci-secrets.yml
+
+# Docker secrets
+docker-compose.override.yml
+.dockerignore.local

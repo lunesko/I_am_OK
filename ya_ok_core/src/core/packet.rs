@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use std::fmt;
 
 /// Приоритет пакета
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub enum Priority {
     Low = 0,     // Voice
     Medium = 1,  // Text
@@ -182,6 +182,23 @@ impl Packet {
         self.hops < self.max_hops
     }
 
+    /// Atomic check: может ли пакет быть forwarded (не expired И не превышен max_hops)
+    /// 
+    /// # TOCTOU Protection
+    /// Этот метод выполняет обе проверки (TTL и hops) атомарно с единой временной меткой,
+    /// предотвращая TOCTOU (Time-Of-Check-Time-Of-Use) race condition.
+    /// 
+    /// **НЕ ИСПОЛЬЗУЙТЕ** `!is_expired() && can_forward()` - это создает TOCTOU!
+    /// Между двумя проверками время может измениться и пакет станет expired.
+    pub fn can_be_forwarded(&self) -> bool {
+        let now = Utc::now();
+        let elapsed = now.signed_duration_since(self.timestamp);
+        let is_not_expired = (elapsed.num_seconds() as u32) < self.ttl;
+        let has_hops_remaining = self.hops < self.max_hops;
+        
+        is_not_expired && has_hops_remaining
+    }
+
     /// Увеличить счетчик hops
     pub fn increment_hops(&mut self) {
         self.hops += 1;
@@ -196,9 +213,42 @@ impl Packet {
     }
 
     /// Десериализовать пакет из CBOR
+    /// 
+    /// # Security Note
+    /// Limits maximum packet size to prevent memory exhaustion attacks.
+    /// - Maximum packet size: 128 KB (enough for 7 sec voice + metadata)
+    /// - Maximum encrypted payload: 64 KB
+    /// - Maximum signature size: 64 bytes (Ed25519)
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PacketError> {
-        de::from_reader(bytes)
-            .map_err(|_| PacketError::DeserializationFailed)
+        // Security: Enforce maximum packet size
+        const MAX_PACKET_SIZE: usize = 128 * 1024; // 128 KB
+        if bytes.len() > MAX_PACKET_SIZE {
+            return Err(PacketError::PacketTooLarge(bytes.len()));
+        }
+        
+        let packet: Packet = de::from_reader(bytes)
+            .map_err(|_| PacketError::DeserializationFailed)?;
+        
+        // Security: Validate packet fields after deserialization
+        const MAX_ENCRYPTED_PAYLOAD: usize = 64 * 1024; // 64 KB
+        if packet.encrypted_payload.ciphertext.len() > MAX_ENCRYPTED_PAYLOAD {
+            return Err(PacketError::PacketTooLarge(packet.encrypted_payload.ciphertext.len()));
+        }
+        
+        // Validate signature size (Ed25519 = 64 bytes)
+        if packet.signature.len() > 64 {
+            return Err(PacketError::InvalidSignature);
+        }
+        
+        // Validate public key sizes
+        if !packet.sender_public_key.is_empty() && packet.sender_public_key.len() != 32 {
+            return Err(PacketError::InvalidSenderKey);
+        }
+        if !packet.sender_x25519_public_key.is_empty() && packet.sender_x25519_public_key.len() != 32 {
+            return Err(PacketError::InvalidSenderKey);
+        }
+        
+        Ok(packet)
     }
 }
 
@@ -224,6 +274,9 @@ pub enum PacketError {
 
     #[error("Deserialization failed")]
     DeserializationFailed,
+
+    #[error("Packet too large: {0} bytes")]
+    PacketTooLarge(usize),
 
     #[error("Invalid signature")]
     InvalidSignature,

@@ -10,6 +10,7 @@ pub mod ble;
 pub mod wifi_direct;
 pub mod udp;
 pub mod satellite;
+pub mod chunking;
 
 use crate::core::Packet;
 use async_trait::async_trait;

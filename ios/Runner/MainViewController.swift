@@ -303,13 +303,18 @@ final class MainViewController: UIViewController, AVAudioRecorderDelegate {
     }
 
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        recordButton.setTitle("🎙️", for: .normal)
-        if flag, let data = try? Data(contentsOf: recorder.url) {
-            recordedVoice = data
-            voiceStatusLabel.text = "Голос записано"
-            clearVoiceButton.isHidden = false
-        } else {
-            voiceStatusLabel.text = ""
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.recordButton.setTitle("🎙️", for: .normal)
+            
+            if flag, let data = try? Data(contentsOf: recorder.url) {
+                self.recordedVoice = data
+                self.voiceStatusLabel.text = "Голос записано"
+                self.clearVoiceButton.isHidden = false
+            } else {
+                self.voiceStatusLabel.text = ""
+            }
         }
     }
 

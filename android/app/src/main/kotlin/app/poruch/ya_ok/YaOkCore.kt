@@ -20,6 +20,8 @@ object YaOkCore {
     @JvmStatic external fun addPeer(peerId: String, x25519PublicKeyHex: String): Int
     @JvmStatic external fun getRecentMessages(limit: Int): String?
     @JvmStatic external fun getRecentMessagesFull(limit: Int): String?
+    @JvmStatic external fun getPeerList(): String?
+    @JvmStatic external fun getAcksForMessage(messageId: String): String?
     @JvmStatic external fun exportPendingPackets(limit: Int): String?
     @JvmStatic external fun exportPendingMessages(limit: Int): String?
     @JvmStatic external fun importPackets(packetsBase64: String): Int

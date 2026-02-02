@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>RelayConfiguration</key>
+    <dict>
+        <key>PrimaryHost</key>
+        <string>213.188.195.83</string>
+        <key>PrimaryPort</key>
+        <integer>40100</integer>
+        <key>FallbackHosts</key>
+        <array>
+            <!-- Add fallback relay servers here -->
+        </array>
+    </dict>
+    <key>Environment</key>
+    <string>production</string>
+</dict>
+</plist>

@@ -13,33 +13,167 @@ use crate::sync::{Gossip, GossipProtocol};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Mutex};
 use tokio::sync::RwLock;
 use tokio::runtime::Runtime;
 use std::slice;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
-use once_cell::sync::Lazy;
 use std::fs;
 
 const IDENTITY_FILENAME: &str = "ya_ok_identity.json";
 const DB_FILENAME: &str = "ya_ok.db";
 
+// Error codes for FFI
+const ERR_OK: c_int = 0;
+#[allow(dead_code)] // Reserved for future use
+const ERR_NOT_INITIALIZED: c_int = -1;
+const ERR_ALREADY_INITIALIZED: c_int = -2;
+#[allow(dead_code)] // Reserved for future use
+const ERR_INVALID_ARGUMENT: c_int = -3;
+#[allow(dead_code)] // Reserved for future use
+const ERR_IO_ERROR: c_int = -4;
+const ERR_INTERNAL_ERROR: c_int = -5;
+#[allow(dead_code)] // Reserved for future use
+const ERR_SERIALIZE_ERROR: c_int = -6;
+const ERR_NULL_POINTER: c_int = -7;
+const ERR_UTF8_ERROR: c_int = -8;
+const ERR_RUNTIME_UNAVAILABLE: c_int = -9;
+
 #[cfg(target_os = "android")]
 mod android_jni;
 
-/// Глобальное состояние ядра
-static mut CORE_STATE: Option<Arc<CoreState>> = None;
+/// --- Peer-store FFI: add/list/remove -------------------------------------
+#[no_mangle]
+pub extern "C" fn ya_ok_peer_store_add(public_key_hex: *const c_char, meta: *const c_char) -> c_int {
+    let public_key = unsafe {
+        if public_key_hex.is_null() { return ERR_NULL_POINTER; }
+        CStr::from_ptr(public_key_hex)
+    };
+    let public_key_str = match public_key.to_str() { 
+        Ok(s) => s, 
+        Err(_) => return ERR_UTF8_ERROR 
+    };
 
-/// Глобальный Tokio runtime
-static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    Runtime::new().expect("Failed to create tokio runtime")
-});
+    let meta_opt = unsafe {
+        if meta.is_null() { 
+            None 
+        } else { 
+            match CStr::from_ptr(meta).to_str() { 
+                Ok(s) => Some(s.to_string()), 
+                Err(_) => return ERR_UTF8_ERROR 
+            } 
+        }
+    };
+
+    match crate::core::add_peer_global(public_key_str, meta_opt) {
+        Ok(_) => ERR_OK,
+        Err(_) => ERR_INTERNAL_ERROR,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ya_ok_peer_store_list() -> *mut c_char {
+    match crate::core::list_peers_global() {
+        Ok(peers) => {
+            match serde_json::to_string(&peers) {
+                Ok(json) => match CString::new(json) {
+                    Ok(cstr) => cstr.into_raw(),
+                    Err(_) => std::ptr::null_mut(),
+                },
+                Err(_) => std::ptr::null_mut(),
+            }
+        }
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ya_ok_peer_store_remove(id: *const c_char) -> c_int {
+    let id_c = unsafe {
+        if id.is_null() { return ERR_NULL_POINTER; }
+        CStr::from_ptr(id)
+    };
+    let id_str = match id_c.to_str() { 
+        Ok(s) => s, 
+        Err(_) => return ERR_UTF8_ERROR 
+    };
+
+    match crate::core::remove_peer_global(id_str) {
+        Ok(b) => if b { 1 } else { 0 },
+        Err(_) => ERR_INTERNAL_ERROR,
+    }
+}
+
+/// --- ACK FFI: get ACKs for message ---------------------------------------
+#[no_mangle]
+pub extern "C" fn ya_ok_get_acks_for_message(message_id: *const c_char) -> *mut c_char {
+    let message_id_c = unsafe {
+        if message_id.is_null() { return std::ptr::null_mut(); }
+        CStr::from_ptr(message_id)
+    };
+    let message_id_str = match message_id_c.to_str() { 
+        Ok(s) => s, 
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let state = match CORE_STATE.get() {
+        Some(s) => s,
+        None => return std::ptr::null_mut(),
+    };
+
+    let storage = match state.storage.lock() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    match storage.get_acks_for_message(message_id_str) {
+        Ok(acks) => {
+            // Format: JSON array of {ack_from, ack_type, timestamp}
+            let ack_list: Vec<serde_json::Value> = acks.iter().map(|(from, typ, ts)| {
+                serde_json::json!({
+                    "ack_from": from,
+                    "ack_type": typ,
+                    "timestamp": ts
+                })
+            }).collect();
+
+            let json = serde_json::to_string(&ack_list).unwrap_or_else(|_| "[]".to_string());
+            match CString::new(json) {
+                Ok(c) => c.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            }
+        }
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Глобальное состояние ядра - thread-safe с OnceLock
+static CORE_STATE: OnceLock<Arc<CoreState>> = OnceLock::new();
+
+/// Глобальный Tokio runtime - thread-safe
+static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+/// Получить или создать runtime
+fn get_runtime() -> Result<&'static Runtime, ApiError> {
+    RUNTIME.get_or_init(|| {
+        Runtime::new().unwrap_or_else(|_| {
+            // Fallback to basic runtime if full fails
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("Failed to create minimal tokio runtime")
+        })
+    });
+    RUNTIME.get().ok_or(ApiError::RuntimeNotAvailable)
+}
 
 /// Состояние ядра
 pub struct CoreState {
     identity: Arc<RwLock<Option<Identity>>>,
-    storage: Storage,
+    storage: Arc<Mutex<Storage>>,  // Wrapped in Mutex for thread safety (rusqlite::Connection is not Sync)
+    #[allow(dead_code)] // Will be used when transport layer is fully integrated
     transport_manager: TransportManager,
     router: DtnRouter,
     policy_manager: RwLock<PolicyManager>,
@@ -60,7 +194,7 @@ impl CoreState {
     }
 
     fn new_with_paths(paths: CorePaths) -> Result<Self, ApiError> {
-        let storage = Storage::new(&paths.storage_db)?;
+        let storage = Arc::new(Mutex::new(Storage::new(&paths.storage_db)?));
         let transport_manager = TransportManager::new();
         let router = DtnRouter::new(Storage::new(&paths.storage_db)?, TransportManager::new());
         let identity = load_identity(&paths.identity_file).ok().flatten();
@@ -184,7 +318,11 @@ pub extern "C" fn ya_ok_add_peer(peer_id: *const c_char, x25519_public_key_hex: 
         Err(_) => return -10,
     };
 
-    let handle = RUNTIME.handle();
+    let _runtime = match get_runtime() {
+        Ok(rt) => rt,
+        Err(_) => return ERR_RUNTIME_UNAVAILABLE,
+    };
+    let handle = _runtime.handle();
     let peer = Peer {
         id: peer_id_str.to_string(),
         transport_type: TransportType::Udp,
@@ -199,52 +337,69 @@ pub extern "C" fn ya_ok_add_peer(peer_id: *const c_char, x25519_public_key_hex: 
         state.router.update_peers(vec![peer]).await;
     });
 
-    0
+    ERR_OK
 }
 
 /// Инициализация ядра
 #[no_mangle]
 pub extern "C" fn ya_ok_core_init() -> c_int {
-    // Tokio runtime уже инициализирован через Lazy
-    // Просто убеждаемся, что он доступен
-    let _handle = RUNTIME.handle();
+    let _runtime = match get_runtime() {
+        Ok(rt) => rt,
+        Err(_) => return ERR_INTERNAL_ERROR,
+    };
 
     match CoreState::new() {
         Ok(state) => {
-            unsafe {
-                CORE_STATE = Some(Arc::new(state));
+            match CORE_STATE.set(Arc::new(state)) {
+                Ok(_) => ERR_OK,
+                Err(_) => ERR_ALREADY_INITIALIZED,
             }
-            0 // SUCCESS
         }
-        Err(_) => -1, // ERROR
+        Err(e) => {
+            eprintln!("Failed to initialize core: {:?}", e);
+            ERR_INTERNAL_ERROR
+        }
     }
 }
 
-/// Инициализация ядра с указанием директории данных
+/// Инициализация с базовой директорией
 #[no_mangle]
 pub extern "C" fn ya_ok_core_init_with_path(base_dir: *const c_char) -> c_int {
-    let c_str = unsafe {
+    let runtime = match get_runtime() {
+        Ok(rt) => rt,
+        Err(_) => return ERR_INTERNAL_ERROR,
+    };
+
+    let base_dir_c = unsafe {
         if base_dir.is_null() {
-            return -7; // NULL_POINTER
+            return ERR_NULL_POINTER;
         }
         CStr::from_ptr(base_dir)
     };
 
-    let base = match c_str.to_str() {
-        Ok(s) if !s.is_empty() => s,
-        _ => return -8, // INVALID_UTF8_OR_EMPTY
+    let base_dir_str = match base_dir_c.to_str() {
+        Ok(s) => s,
+        Err(_) => return ERR_UTF8_ERROR,
     };
 
-    let base_path = Path::new(base);
+    let base_path = Path::new(base_dir_str);
     match CoreState::new_with_base(base_path) {
         Ok(state) => {
-            unsafe {
-                CORE_STATE = Some(Arc::new(state));
+            match CORE_STATE.set(Arc::new(state)) {
+                Ok(_) => ERR_OK,
+                Err(_) => ERR_ALREADY_INITIALIZED,
             }
-            0
         }
-        Err(_) => -1,
+        Err(e) => {
+            eprintln!("Failed to initialize core with path {}: {:?}", base_dir_str, e);
+            ERR_INTERNAL_ERROR
+        }
     }
+}
+
+/// Получить состояние ядра (thread-safe)
+fn get_core_state() -> Result<&'static Arc<CoreState>, ApiError> {
+    CORE_STATE.get().ok_or(ApiError::NotInitialized)
 }
 
 /// Экстренное удаление локальных данных (identity + db) и сброс in-memory состояния.
@@ -267,9 +422,8 @@ pub extern "C" fn ya_ok_wipe_local_data() -> c_int {
         (state.identity_path.clone(), base.join(DB_FILENAME))
     };
 
-    unsafe {
-        CORE_STATE = None;
-    }
+    // Note: CORE_STATE (OnceLock) cannot be reset. Application should restart after wipe.
+    // The identity and storage references are dropped when they go out of scope.
 
     // Best-effort deletes
     let _ = fs::remove_file(&identity_path);
@@ -342,11 +496,11 @@ fn create_and_send_packet(
     let identity = identity_lock.as_ref().ok_or(ApiError::NotInitialized)?;
 
     // Сохраняем сообщение
-    state.storage.store_message(&message)?;
+    state.storage.lock().unwrap().store_message(&message)?;
     
     // Получаем список известных пиров через router
     let router = &state.router;
-    let handle = RUNTIME.handle();
+    let runtime = get_runtime().map_err(|_| ApiError::RuntimeNotAvailable)?; let handle = runtime.handle();
     
     // Получаем известных пиров из router
     let known_peers = handle.block_on(async {
@@ -529,7 +683,11 @@ fn handle_incoming_packet_internal(
         None => return -2, // NO_IDENTITY
     };
 
-    let handle = RUNTIME.handle();
+    let runtime = match get_runtime() {
+        Ok(rt) => rt,
+        Err(_) => return ERR_RUNTIME_UNAVAILABLE,
+    };
+    let handle = runtime.handle();
 
     // Если есть информация о пиру, обновляем known_peers
     if let Some((transport_type, address)) = peer_info {
@@ -588,7 +746,7 @@ fn handle_incoming_packet_internal(
                     }
                 }
                 if stored {
-                    let _ = state.storage.store_message(&message);
+                    let _ = state.storage.lock().unwrap().store_message(&message);
                 }
 
                 // Обновляем кэш identity отправителя
@@ -717,7 +875,7 @@ pub extern "C" fn ya_ok_get_stats() -> *mut c_char {
     };
 
     // Собираем статистику
-    let storage_stats = state.storage.get_stats().unwrap_or_default();
+    let storage_stats = state.storage.lock().unwrap().get_stats().unwrap_or_default();
     let routing_stats = crate::routing::RoutingStats::default();
     let sync_stats = crate::sync::GossipStats::default();
 
@@ -742,7 +900,7 @@ pub extern "C" fn ya_ok_export_pending_packets(limit: c_int) -> *mut c_char {
     };
 
     let limit = if limit <= 0 { 50 } else { limit as usize };
-    let pending = match state.storage.get_pending_messages() {
+    let pending = match state.storage.lock().unwrap().get_pending_messages() {
         Ok(messages) => messages,
         Err(_) => Vec::new(),
     };
@@ -755,7 +913,11 @@ pub extern "C" fn ya_ok_export_pending_packets(limit: c_int) -> *mut c_char {
 
     // Создаем пакеты для каждого сообщения и каждого известного пира с X25519 ключом.
     // Если список пиров пуст (или без X25519), то мы НЕ создаём пакеты, т.к. получатели не смогут их расшифровать.
-    let handle = RUNTIME.handle();
+    let runtime = match get_runtime() {
+        Ok(rt) => rt,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let handle = runtime.handle();
     let known_peers = handle.block_on(async { state.router.known_peers().read().await.clone() });
 
     let mut packets: Vec<Vec<u8>> = Vec::new();
@@ -908,7 +1070,7 @@ pub extern "C" fn ya_ok_export_pending_messages(limit: c_int) -> *mut c_char {
     };
 
     let limit = if limit <= 0 { 50 } else { limit as usize };
-    let pending = match state.storage.get_pending_messages() {
+    let pending = match state.storage.lock().unwrap().get_pending_messages() {
         Ok(messages) => messages,
         Err(_) => Vec::new(),
     };
@@ -953,7 +1115,7 @@ pub extern "C" fn ya_ok_import_messages(json: *const c_char) -> c_int {
     let mut imported = 0;
     for export in exports {
         if let Ok(message) = export.to_message() {
-            if state.storage.store_message_with_delivered(&message, true).is_ok() {
+            if state.storage.lock().unwrap().store_message_with_delivered(&message, true).is_ok() {
                 imported += 1;
             }
         }
@@ -982,7 +1144,7 @@ pub extern "C" fn ya_ok_mark_delivered(message_id: *const c_char) -> c_int {
         Err(_) => return -8,
     };
 
-    match state.storage.mark_delivered(id) {
+    match state.storage.lock().unwrap().mark_delivered(id) {
         Ok(_) => 0,
         Err(_) => -5,
     }
@@ -997,7 +1159,7 @@ pub extern "C" fn ya_ok_get_recent_messages_full(limit: c_int) -> *mut c_char {
     };
 
     let limit = if limit <= 0 { 50 } else { limit as usize };
-    let messages = match state.storage.get_recent_messages(limit) {
+    let messages = match state.storage.lock().unwrap().get_recent_messages(limit) {
         Ok(messages) => messages,
         Err(_) => Vec::new(),
     };
@@ -1020,7 +1182,7 @@ pub extern "C" fn ya_ok_get_recent_messages(limit: c_int) -> *mut c_char {
     };
 
     let limit = if limit <= 0 { 50 } else { limit as usize };
-    let messages = match state.storage.get_recent_messages(limit) {
+    let messages = match state.storage.lock().unwrap().get_recent_messages(limit) {
         Ok(messages) => messages,
         Err(_) => Vec::new(),
     };
@@ -1173,18 +1335,14 @@ impl MessageExport {
     }
 }
 
-/// Получить ссылку на состояние ядра
-fn get_core_state() -> Result<&'static Arc<CoreState>, ApiError> {
-    unsafe {
-        CORE_STATE.as_ref().ok_or(ApiError::NotInitialized)
-    }
-}
-
 /// Ошибки API
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     #[error("Core not initialized")]
     NotInitialized,
+
+    #[error("Runtime not available")]
+    RuntimeNotAvailable,
 
     #[error("Storage error: {0}")]
     StorageError(#[from] crate::storage::StorageError),
@@ -1198,3 +1356,4 @@ pub enum ApiError {
     #[error("Packet error: {0}")]
     PacketError(#[from] crate::core::PacketError),
 }
+

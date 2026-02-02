@@ -30,3 +30,23 @@ pub mod api;
 // Re-exports for convenience
 pub use core::*;
 pub use api::*;
+
+use std::path::Path;
+
+/// Инициализация core: загрузка локальной идентичности и peer-store (если пути предоставлены)
+pub fn init<I: AsRef<Path>, P: AsRef<Path>>(identity_path: I, peers_path: Option<P>) -> Result<(), String> {
+	// Загрузка идентичности (необязательно)
+	match crate::core::load_identity(identity_path) {
+		Ok(Some(_)) => (),
+		Ok(None) => (),
+		Err(e) => return Err(format!("Failed to load identity: {}", e)),
+	}
+
+	if let Some(p) = peers_path {
+		if let Err(e) = crate::core::init_peer_store(p) {
+			return Err(format!("Failed to init peer store: {:?}", e));
+		}
+	}
+
+	Ok(())
+}

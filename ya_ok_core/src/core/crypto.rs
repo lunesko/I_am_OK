@@ -2,21 +2,23 @@
 //!
 //! - Ed25519 для идентичности и подписей
 //! - X25519 для обмена ключами
-//! - AES-GCM для шифрования payload
+//! - XChaCha20-Poly1305 для шифрования payload (лучше чем AES-GCM для random nonces)
 
-use aes_gcm::{Aes256Gcm, Nonce};
-use aes_gcm::aead::{Aead, KeyInit};
-use rand::rngs::OsRng;
+use chacha20poly1305::{
+    aead::{Aead, KeyInit, OsRng},
+    XChaCha20Poly1305, XNonce,
+};
 use rand::RngCore;
 use x25519_dalek::{PublicKey, StaticSecret};
 use serde::{Deserialize, Serialize};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Зашифрованный payload
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedPayload {
     /// Зашифрованные данные
     pub ciphertext: Vec<u8>,
-    /// Nonce для AES-GCM
+    /// Nonce для XChaCha20-Poly1305 (24 bytes)
     pub nonce: Vec<u8>,
     /// Публичный ключ отправителя (для X25519)
     pub sender_public_key: Vec<u8>,
@@ -25,11 +27,24 @@ pub struct EncryptedPayload {
 /// Результат симметричного шифрования
 pub struct SymmetricEncryption {
     pub ciphertext: Vec<u8>,
-    pub nonce: [u8; 12],
+    pub nonce: [u8; 24], // XChaCha20 uses 192-bit nonce
 }
 
-/// Ключ для симметричного шифрования (AES-256)
-pub type SymmetricKey = [u8; 32];
+/// Ключ для симметричного шифрования (ChaCha20-256)
+#[derive(Zeroize, ZeroizeOnDrop)]
+pub struct SymmetricKey(pub [u8; 32]);
+
+impl SymmetricKey {
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl From<[u8; 32]> for SymmetricKey {
+    fn from(bytes: [u8; 32]) -> Self {
+        SymmetricKey(bytes)
+    }
+}
 
 /// Криптографические операции
 pub struct Crypto;
@@ -47,19 +62,22 @@ impl Crypto {
         private_key: &StaticSecret,
         public_key: &PublicKey,
     ) -> SymmetricKey {
-        private_key.diffie_hellman(public_key).to_bytes()
+        SymmetricKey(private_key.diffie_hellman(public_key).to_bytes())
     }
 
-    /// Зашифровать данные симметрично (AES-GCM)
+    /// Зашифровать данные симметрично (XChaCha20-Poly1305)
+    /// 
+    /// Использует 192-bit nonce, что делает вероятность коллизии
+    /// при random nonce пренебрежимо малой (~2^96 сообщений)
     pub fn encrypt_symmetric(
         key: &SymmetricKey,
         plaintext: &[u8],
     ) -> Result<SymmetricEncryption, CryptoError> {
-        let cipher = Aes256Gcm::new_from_slice(key)
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let mut nonce_bytes = [0u8; 12];
+        let cipher = XChaCha20Poly1305::new(key.as_bytes().into());
+        
+        let mut nonce_bytes = [0u8; 24];
         OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = XNonce::from_slice(&nonce_bytes);
 
         let ciphertext = cipher
             .encrypt(nonce, plaintext)
@@ -71,15 +89,14 @@ impl Crypto {
         })
     }
 
-    /// Расшифровать данные симметрично (AES-GCM)
+    /// Расшифровать данные симметрично (XChaCha20-Poly1305)
     pub fn decrypt_symmetric(
         key: &SymmetricKey,
         ciphertext: &[u8],
-        nonce: &[u8; 12],
+        nonce: &[u8; 24],
     ) -> Result<Vec<u8>, CryptoError> {
-        let cipher = Aes256Gcm::new_from_slice(key)
-            .map_err(|_| CryptoError::InvalidKey)?;
-        let nonce = Nonce::from_slice(nonce);
+        let cipher = XChaCha20Poly1305::new(key.as_bytes().into());
+        let nonce = XNonce::from_slice(nonce);
 
         cipher
             .decrypt(nonce, ciphertext)

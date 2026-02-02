@@ -74,8 +74,33 @@ impl Message {
         if text.len() > 256 {
             return Err(MessageError::TextTooLong(text.len()));
         }
-        if !text.chars().all(|c| c.is_alphanumeric() || c.is_whitespace() || ".,!?".contains(c)) {
-            return Err(MessageError::InvalidTextCharacters);
+        
+        // Enhanced validation: check for control characters and potential homograph attacks
+        for ch in text.chars() {
+            // Reject control characters (U+0000-U+001F, U+007F-U+009F)
+            if ch.is_control() {
+                return Err(MessageError::InvalidTextCharacters);
+            }
+            
+            // Reject zero-width characters (can be used for steganography/confusion)
+            if matches!(ch, 
+                '\u{200B}' | // ZERO WIDTH SPACE
+                '\u{200C}' | // ZERO WIDTH NON-JOINER
+                '\u{200D}' | // ZERO WIDTH JOINER
+                '\u{FEFF}'   // ZERO WIDTH NO-BREAK SPACE
+            ) {
+                return Err(MessageError::InvalidTextCharacters);
+            }
+            
+            // Allow alphanumeric, whitespace, common punctuation, and Cyrillic/emoji
+            if !ch.is_alphanumeric() && 
+               !ch.is_whitespace() && 
+               !matches!(ch, '.' | ',' | '!' | '?' | '-' | '\'' | '"' | '(' | ')' | ':' | ';') &&
+               !(ch >= '\u{0400}' && ch <= '\u{04FF}') && // Cyrillic
+               !(ch >= '\u{1F300}' && ch <= '\u{1F9FF}')  // Emoji
+            {
+                return Err(MessageError::InvalidTextCharacters);
+            }
         }
 
         Ok(Self::new(

@@ -2,6 +2,18 @@
 //!
 //! Каждый пользователь имеет уникальную идентичность на основе Ed25519 ключей.
 //! Идентичность создается один раз и хранится локально.
+//!
+//! ## Security Warning
+//!
+//! Private keys in Identity struct (signing_key, x25519_secret) are automatically
+//! zeroed on drop via zeroize crate. However, for production use:
+//!
+//! - **iOS:** Store private keys in iOS Keychain (kSecAttrAccessibleWhenUnlockedThisDeviceOnly)
+//! - **Android:** Store private keys in Android Keystore (hardware-backed if available)
+//! - **DO NOT** persist private keys to disk in plain text or encrypted files
+//!
+//! The FFI layer should only pass keys to/from secure storage providers, never
+//! to application-controlled files or databases.
 
 use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use x25519_dalek::{StaticSecret, PublicKey as X25519PublicKey};

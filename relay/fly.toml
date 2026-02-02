@@ -10,13 +10,39 @@ app = "i-am-ok-relay"
   PEER_TTL_SECS = "300"
   METRICS_INTERVAL_SECS = "60"
 
+# UDP relay service (main message routing)
 [[services]]
   internal_port = 40100
   protocol = "udp"
-  # Keep at least one machine always running.
-  # For UDP relays, autostop often drops packets (UDP can't reliably "wake" sleeping machines).
-  auto_stop_machines = "off"
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
+  
   [[services.ports]]
     port = 40100
+
+# HTTP metrics service (monitoring & health checks)
+[[services]]
+  internal_port = 9090
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  
+  [[services.ports]]
+    port = 9090
+    handlers = ["http"]
+  
+  # Health check for metrics endpoint
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "10s"
+    port = 9090
+    type = "http"
+    method = "GET"
+    path = "/health"
+
+# Fly.io internal metrics (отличается от наших /metrics)
+[metrics]
+  port = 9091
+  path = "/metrics"
