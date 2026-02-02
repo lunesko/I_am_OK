@@ -26,9 +26,11 @@ class TransportService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        println("🔵 TransportService onCreate() - initializing...")
         NotificationHelper.createChannel(this)
         startForeground(NotificationHelper.FOREGROUND_ID, NotificationHelper.buildForeground(this))
 
+        println("🔵 Creating UdpTransport...")
         udpTransport = UdpTransport(this) { payload, address ->
             handleIncoming(payload, TRANSPORT_UDP, address)
         }
@@ -37,6 +39,7 @@ class TransportService : Service() {
         }
         wifiDirectController = WifiDirectController(this, udpTransport::addPeer)
 
+        println("🔵 Starting UDP transport...")
         udpTransport.start()
         bleTransport.start()
         wifiDirectController.start()
@@ -58,6 +61,7 @@ class TransportService : Service() {
         val packets = CoreGateway.exportPendingPackets(50).orEmpty()
         if (packets.isBlank()) return
 
+        println("📤 syncOutgoing: ${packets.length} bytes to send")
         udpTransport.send(packets)
         bleTransport.send(packets)
     }
@@ -90,6 +94,68 @@ class TransportService : Service() {
             if (senderId.isNotBlank()) {
                 ContactStore.updateLastCheckin(this, senderId, now)
             }
+            
+            // Handle contact add request
+            val content = obj.optString("content")
+            println("🔵 Message content: $content")
+            if (content.contains("\"type\":\"contact_add_request\"")) {
+                println("🔵 Found contact_add_request, processing...")
+                handleContactAddRequest(content, senderId)
+            }
+        }
+    }
+    
+    private fun handleContactAddRequest(jsonContent: String, senderId: String) {
+        try {
+            println("🔵 handleContactAddRequest: $jsonContent")
+            val requestObj = org.json.JSONObject(jsonContent)
+            val requestType = requestObj.optString("type")
+            if (requestType != "contact_add_request") {
+                println("❌ Not a contact_add_request: $requestType")
+                return
+            }
+            
+            val contactId = requestObj.optString("id")
+            val contactName = requestObj.optString("name", "Користувач")
+            val x25519Key = requestObj.optString("x25519")
+            
+            println("🔵 Parsed: id=$contactId, name=$contactName, x25519=${x25519Key.isNotBlank()}")
+            
+            if (contactId.isBlank()) {
+                println("❌ Empty contactId")
+                return
+            }
+            
+            // Check if contact already exists
+            val existingContacts = ContactStore.getContacts(this)
+            if (existingContacts.any { it.id == contactId }) {
+                println("⚠️ Contact $contactId already exists")
+                return
+            }
+            
+            println("✅ Adding new contact: $contactName")
+            
+            // Auto-add contact
+            val contact = app.poruch.ya_ok.data.Contact(
+                id = contactId,
+                name = contactName,
+                lastCheckin = System.currentTimeMillis()
+            )
+            ContactStore.addContact(this, contact)
+            
+            // Sync peer if x25519 key available
+            if (x25519Key.isNotBlank()) {
+                val result = CoreGateway.addPeer(contactId, x25519Key)
+                println("🔵 addPeer result: $result")
+            }
+            
+            // Show notification
+            println("🔵 Showing notification for $contactName")
+            NotificationHelper.showContactAdded(this, contactName)
+            
+        } catch (e: Exception) {
+            println("❌ Error handling contact add request: ${e.message}")
+            e.printStackTrace()
         }
     }
 

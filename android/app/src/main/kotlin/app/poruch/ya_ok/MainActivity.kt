@@ -268,9 +268,34 @@ class MainActivity : AppCompatActivity(), Navigator {
 
     private fun extractAddContactId(intent: android.content.Intent?): String? {
         val data: Uri = intent?.data ?: return null
-        if (!data.scheme.equals("yaok", ignoreCase = true)) return null
-        if (!data.host.equals("add", ignoreCase = true)) return null
+        
+        // Support both yaok:// and https:// schemes
+        val isYaok = data.scheme.equals("yaok", ignoreCase = true)
+        val isHttps = data.scheme.equals("https", ignoreCase = true) && 
+                      data.host.equals("i-am-ok-relay.fly.dev", ignoreCase = true)
+        
+        if (!isYaok && !isHttps) return null
+        
+        val path = data.path ?: ""
+        if (!path.contains("add", ignoreCase = true) && 
+            !data.host.equals("add", ignoreCase = true)) return null
+        
         val id = data.getQueryParameter("id") ?: data.lastPathSegment
+        val x25519Key = data.getQueryParameter("x")
+        val name = data.getQueryParameter("name")
+        
+        // Store x25519 key and name for later peer sync
+        if (!id.isNullOrBlank()) {
+            val prefs = getSharedPreferences("ya_ok_pending_peers", MODE_PRIVATE).edit()
+            if (!x25519Key.isNullOrBlank()) {
+                prefs.putString("peer_key_$id", x25519Key)
+            }
+            if (!name.isNullOrBlank()) {
+                prefs.putString("peer_name_$id", name)
+            }
+            prefs.apply()
+        }
+        
         return id?.trim()?.takeIf { it.isNotBlank() }
     }
 }

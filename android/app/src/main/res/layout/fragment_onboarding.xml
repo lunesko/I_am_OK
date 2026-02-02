@@ -42,11 +42,24 @@
             android:textColor="@color/text_secondary"
             android:textSize="16sp" />
 
+        <EditText
+            android:id="@+id/userNameInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:background="@drawable/bg_card"
+            android:hint="Ваше ім'я"
+            android:inputType="textPersonName|textCapWords"
+            android:padding="16dp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary"
+            android:textSize="16sp" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/primaryActionButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="24dp"
             android:background="@drawable/bg_gradient_primary"
             android:backgroundTint="@null"
             android:padding="16dp"

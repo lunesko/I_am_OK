@@ -1,6 +1,7 @@
 package app.poruch.ya_ok.ui
 
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
@@ -123,9 +124,26 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
     }
 
     private fun showAddContactDialogWithId(scannedId: String?) {
+        // Try to get name from deep link first (stored in pending_peers)
+        var prefillName: String? = null
+        if (scannedId != null) {
+            prefillName = requireContext().getSharedPreferences("ya_ok_pending_peers", Context.MODE_PRIVATE)
+                .getString("peer_name_$scannedId", null)
+        }
+        
+        // Parse QR to get name if available
+        val qrData = if (scannedId != null) parseContactQr(scannedId) else null
+        if (prefillName == null) {
+            prefillName = qrData?.name
+        }
+        
         val nameInput = EditText(requireContext()).apply {
             hint = "Ім'я"
             inputType = InputType.TYPE_CLASS_TEXT
+            // Auto-fill name from deep link or QR if available
+            if (!prefillName.isNullOrBlank()) {
+                setText(prefillName)
+            }
         }
         val idInput = EditText(requireContext()).apply {
             hint = "ID (необов'язково)"
@@ -153,9 +171,50 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                     return@setPositiveButton
                 }
                 val contactId = if (id.isBlank()) "local_${System.currentTimeMillis()}" else id
-                ContactStore.addContact(requireContext(), Contact(contactId, name))
+                
+                // Parse QR to get x25519 key if available
+                val qrData = if (scannedId != null) parseContactQr(scannedId) else ContactQr(contactId, null, null)
+                
+                ContactStore.addContact(requireContext(), Contact(qrData.id, name))
+                
+                // Sync peer with Core for E2E encryption
+                if (!qrData.x25519Hex.isNullOrBlank()) {
+                    val result = CoreGateway.addPeer(qrData.id, qrData.x25519Hex)
+                    if (result == 0) {
+                        // Send auto-add request to other user
+                        val myId = CoreGateway.getIdentityId()
+                        val myName = requireContext().getSharedPreferences("ya_ok_prefs", Context.MODE_PRIVATE)
+                            .getString("user_name", "Користувач")
+                        val myX25519 = try {
+                            CoreGateway.getIdentityX25519PublicKeyHex()
+                        } catch (e: UnsatisfiedLinkError) {
+                            null
+                        }
+                        
+                        println("🔵 Sending contact_add_request: id=$myId, name=$myName")
+                        
+                        // Send special message with contact info for auto-add
+                        val addRequestJson = buildString {
+                            append("{\"type\":\"contact_add_request\",")
+                            append("\"id\":\"$myId\",")
+                            append("\"name\":\"$myName\"")
+                            if (!myX25519.isNullOrBlank()) {
+                                append(",\"x25519\":\"$myX25519\"")
+                            }
+                            append("}")
+                        }
+                        val sendResult = CoreGateway.sendText(addRequestJson)
+                        println("🔵 SendText result: $sendResult")
+                        
+                        Toast.makeText(requireContext(), "✅ Людину додано і синхронізовано", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "⚠️ Людину додано (код синхронізації: $result)", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "Людину додано", Toast.LENGTH_SHORT).show()
+                }
+                
                 renderContacts()
-                Toast.makeText(requireContext(), "Людину додано", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Скасувати", null)
             .show()
@@ -173,7 +232,7 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
         return trimmed
     }
 
-    private data class ContactQr(val id: String, val x25519Hex: String?)
+    private data class ContactQr(val id: String, val x25519Hex: String?, val name: String?)
 
     private fun parseContactQr(raw: String): ContactQr {
         val trimmed = raw.trim()
@@ -181,9 +240,10 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
             val uri = runCatching { android.net.Uri.parse(trimmed) }.getOrNull()
             val id = uri?.getQueryParameter("id")?.trim().orEmpty()
             val x = uri?.getQueryParameter("x")?.trim()
+            val name = uri?.getQueryParameter("name")?.trim()
             val normalizedId = if (id.isNotBlank()) id else normalizeContactId(trimmed)
-            return ContactQr(normalizedId, x?.takeIf { it.isNotBlank() })
+            return ContactQr(normalizedId, x?.takeIf { it.isNotBlank() }, name?.takeIf { it.isNotBlank() })
         }
-        return ContactQr(normalizeContactId(trimmed), null)
+        return ContactQr(normalizeContactId(trimmed), null, null)
     }
 }

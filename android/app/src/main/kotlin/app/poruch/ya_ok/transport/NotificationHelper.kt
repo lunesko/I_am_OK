@@ -65,4 +65,16 @@ object NotificationHelper {
             else -> "Нове повідомлення"
         }
     }
+    
+    fun showContactAdded(context: Context, contactName: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("Новий контакт")
+            .setContentText("✅ $contactName додав(ла) вас у свої контакти")
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setAutoCancel(true)
+            .build()
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
 }

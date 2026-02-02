@@ -13,6 +13,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hyper = { version = "1.5", features = ["full"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["tokio"] }
+urlencoding = "2.1"
 
 [profile.release]
 opt-level = 3

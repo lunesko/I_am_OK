@@ -37,31 +37,37 @@ class UdpTransport(
         }
     }
     
-    private val relayAddress: InetSocketAddress? = runCatching {
-        val (host, port) = relayConfig
-        println("🔵 Relay config: $host:$port")
-        val address = InetAddress.getByName(host)
-        println("🔵 Relay resolved to: ${address.hostAddress}")
-        // Security: Validate relay IP before creating connection
-        if (!securityManager.validateRelayAddress(address)) {
-            println("⚠️ Relay address validation failed")
-            return@runCatching null
-        }
-        println("✅ Relay address validated: $host:$port")
-        InetSocketAddress(address, port)
-    }.getOrElse { e ->
-        println("❌ Relay config error: ${e.message}")
-        null
-    }
+    @Volatile
+    private var relayAddress: InetSocketAddress? = null
 
     fun start() {
+        println("🔵 UDP Transport starting...")
         executor.execute {
+            // Initialize relay address in background thread (DNS resolution)
+            try {
+                val (host, port) = relayConfig
+                println("🔵 Relay config: $host:$port")
+                val address = InetAddress.getByName(host)
+                println("🔵 Relay resolved to: ${address.hostAddress}")
+                // Security: Validate relay IP before creating connection
+                if (!securityManager.validateRelayAddress(address)) {
+                    println("⚠️ Relay address validation failed")
+                    return@execute
+                }
+                relayAddress = InetSocketAddress(address, port)
+                println("✅ Relay address validated: $host:$port")
+            } catch (e: Exception) {
+                println("❌ Relay config error: ${e.message}")
+                e.printStackTrace()
+            }
+
             try {
                 val udp = DatagramSocket(null)
                 udp.reuseAddress = true
                 udp.broadcast = true
                 udp.bind(InetSocketAddress(PORT))
                 socket = udp
+                println("✅ UDP socket bound to port $PORT, ready to receive")
                 val buffer = ByteArray(65_000)
 
                 while (!Thread.currentThread().isInterrupted) {
@@ -101,30 +107,33 @@ class UdpTransport(
     }
 
     fun send(json: String) {
-        val udp = socket ?: run {
-            println("⚠️ UDP socket not initialized")
-            return
-        }
-        val data = json.toByteArray(Charsets.UTF_8)
-        val destinations = mutableListOf<InetSocketAddress>()
-        destinations.add(InetSocketAddress(InetAddress.getByName(BROADCAST_ADDRESS), PORT))
-        destinations.addAll(peers.values)
-        relayAddress?.let { 
-            destinations.add(it)
-            println("📤 Sending to relay: ${it.hostString}:${it.port} (${data.size} bytes)")
-        }
-
-        var sent = 0
-        destinations.forEach { address ->
-            runCatching {
-                val packet = DatagramPacket(data, data.size, address.address, address.port)
-                udp.send(packet)
-                sent++
-            }.onFailure { e ->
-                println("❌ Failed to send to ${address}: ${e.message}")
+        executor.execute {
+            val udp = socket ?: run {
+                println("⚠️ UDP socket not initialized")
+                return@execute
             }
+            val data = json.toByteArray(Charsets.UTF_8)
+            val destinations = mutableListOf<InetSocketAddress>()
+            destinations.add(InetSocketAddress(InetAddress.getByName(BROADCAST_ADDRESS), PORT))
+            destinations.addAll(peers.values)
+            relayAddress?.let { 
+                destinations.add(it)
+                println("📤 Sending to relay: ${it.hostString}:${it.port} (${data.size} bytes)")
+            }
+
+            var sent = 0
+            destinations.forEach { address ->
+                runCatching {
+                    val packet = DatagramPacket(data, data.size, address.address, address.port)
+                    udp.send(packet)
+                    sent++
+                }.onFailure { e ->
+                    println("❌ Failed to send to ${address}: ${e.message}")
+                    e.printStackTrace()
+                }
+            }
+            println("📤 Sent ${sent}/${destinations.size} UDP packets")
         }
-        println("📤 Sent ${sent}/${destinations.size} UDP packets")
     }
 
     fun addPeer(address: InetAddress) {

@@ -248,6 +248,113 @@ fn cleanup_rate_entries(rate: &mut HashMap<IpAddr, RateEntry>) {
     }
 }
 
+fn generate_add_page(query: &str) -> String {
+    // Parse name from query
+    let name = query.split('&')
+        .find(|part| part.starts_with("name="))
+        .and_then(|part| part.strip_prefix("name="))
+        .and_then(|encoded| urlencoding::decode(encoded).ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "Користувач".to_string());
+    
+    let title = format!("{} запрошує вас в Я ОК!", name);
+    let description = "Швидке повідомлення про безпеку для близьких 🇺🇦";
+    
+    format!(r#"<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+    
+    <!-- Open Graph for WhatsApp/Telegram/Viber -->
+    <meta property="og:title" content="{title}">
+    <meta property="og:description" content="{description}">
+    <meta property="og:image" content="https://i-am-ok-relay.fly.dev/og-image.png">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://i-am-ok-relay.fly.dev/add?{query}">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{title}">
+    <meta name="twitter:description" content="{description}">
+    
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0057B7 0%, #34C759 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }}
+        .container {{
+            text-align: center;
+            max-width: 400px;
+        }}
+        .logo {{
+            font-size: 80px;
+            margin-bottom: 20px;
+        }}
+        h1 {{
+            font-size: 28px;
+            margin-bottom: 10px;
+        }}
+        p {{
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }}
+        .button {{
+            display: inline-block;
+            background: white;
+            color: #0057B7;
+            padding: 16px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }}
+        .button:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }}
+    </style>
+    
+    <script>
+        // Auto-redirect to app on mobile
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isMobile = /android|iphone|ipad|ipod/.test(userAgent);
+        if (isMobile) {{
+            const yaokLink = "yaok://add?{query}";
+            window.location.href = yaokLink;
+            // Fallback to store after 2 seconds if app not installed
+            setTimeout(() => {{
+                if (userAgent.includes('android')) {{
+                    window.location.href = "https://play.google.com/store/apps/details?id=app.poruch.ya_ok";
+                }}
+            }}, 2000);
+        }}
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">💚</div>
+        <h1>{title}</h1>
+        <p>{description}</p>
+        <a href="yaok://add?{query}" class="button">Відкрити додаток</a>
+    </div>
+</body>
+</html>"#, title=title, description=description, query=query)
+}
+
 /// Run HTTP metrics server for monitoring
 async fn run_metrics_server(
     port: u16,
@@ -283,6 +390,53 @@ async fn run_metrics_server(
                         response.headers_mut().insert(
                             hyper::header::CONTENT_TYPE,
                             hyper::header::HeaderValue::from_static("text/html; charset=utf-8")
+                        );
+                        Ok::<_, hyper::Error>(response)
+                    }
+                    (&Method::GET, path) if path.starts_with("/add") => {
+                        // Deep link page with favicon
+                        let query = req.uri().query().unwrap_or("");
+                        let html = generate_add_page(query);
+                        let mut response = Response::new(Full::new(Bytes::from(html)));
+                        response.headers_mut().insert(
+                            hyper::header::CONTENT_TYPE,
+                            hyper::header::HeaderValue::from_static("text/html; charset=utf-8")
+                        );
+                        Ok::<_, hyper::Error>(response)
+                    }
+                    (&Method::GET, "/favicon.ico") => {
+                        // Green heart emoji as SVG favicon
+                        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="75" font-size="75">💚</text></svg>"#;
+                        let mut response = Response::new(Full::new(Bytes::from(svg)));
+                        response.headers_mut().insert(
+                            hyper::header::CONTENT_TYPE,
+                            hyper::header::HeaderValue::from_static("image/svg+xml")
+                        );
+                        Ok::<_, hyper::Error>(response)
+                    }
+                    (&Method::GET, "/og-image.png") => {
+                        // Open Graph image - simple SVG with branding
+                        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<defs>
+<linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" style="stop-color:#0057B7;stop-opacity:1" />
+<stop offset="100%" style="stop-color:#34C759;stop-opacity:1" />
+</linearGradient>
+</defs>
+<rect width="1200" height="630" fill="url(#grad)"/>
+<text x="600" y="280" font-size="120" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold">💚 Я ОК</text>
+<text x="600" y="380" font-size="40" text-anchor="middle" fill="white" opacity="0.9" font-family="Arial, sans-serif">Швидке повідомлення про безпеку</text>
+<text x="600" y="440" font-size="40" text-anchor="middle" fill="white" opacity="0.9" font-family="Arial, sans-serif">для близьких 🇺🇦</text>
+</svg>"#;
+                        let mut response = Response::new(Full::new(Bytes::from(svg)));
+                        response.headers_mut().insert(
+                            hyper::header::CONTENT_TYPE,
+                            hyper::header::HeaderValue::from_static("image/svg+xml")
+                        );
+                        // Cache for 1 hour
+                        response.headers_mut().insert(
+                            hyper::header::CACHE_CONTROL,
+                            hyper::header::HeaderValue::from_static("public, max-age=3600")
                         );
                         Ok::<_, hyper::Error>(response)
                     }
