@@ -257,21 +257,35 @@ fn parse_hex_32(hex_str: &str) -> Result<[u8; 32], ApiError> {
 pub extern "C" fn ya_ok_get_identity_x25519_public_key_hex() -> *mut c_char {
     let state = match get_core_state() {
         Ok(state) => state,
-        Err(_) => return std::ptr::null_mut(),
+        Err(_) => {
+            println!("❌ ya_ok_get_identity_x25519_public_key_hex: core state not available");
+            return std::ptr::null_mut();
+        }
     };
 
     let identity_lock = state.identity.try_read().unwrap();
     let identity = match &*identity_lock {
         Some(id) => id,
-        None => return std::ptr::null_mut(),
+        None => {
+            println!("❌ ya_ok_get_identity_x25519_public_key_hex: identity is None");
+            return std::ptr::null_mut();
+        }
     };
 
     let x = match identity.x25519_public_bytes() {
-        Some(b) => b,
-        None => return std::ptr::null_mut(),
+        Some(b) => {
+            println!("✅ ya_ok_get_identity_x25519_public_key_hex: returning {} bytes", b.len());
+            b
+        }
+        None => {
+            println!("❌ ya_ok_get_identity_x25519_public_key_hex: x25519_public_bytes() returned None");
+            return std::ptr::null_mut();
+        }
     };
 
-    let c_string = CString::new(hex::encode(x)).unwrap_or_else(|_| CString::new("").unwrap());
+    let hex_str = hex::encode(x);
+    println!("✅ X25519 hex: {} (length: {})", hex_str, hex_str.len());
+    let c_string = CString::new(hex_str).unwrap_or_else(|_| CString::new("").unwrap());
     c_string.into_raw()
 }
 
@@ -665,15 +679,220 @@ pub extern "C" fn ya_ok_send_voice(data: *const u8, len: c_int) -> c_int {
     }
 }
 
+/// Отправить статус конкретному получателю
+#[no_mangle]
+pub extern "C" fn ya_ok_send_status_to(status_type: c_int, recipient_id: *const c_char) -> c_int {
+    let state = match get_core_state() {
+        Ok(state) => state,
+        Err(_) => return -1,
+    };
+
+    let identity_lock = state.identity.try_read().unwrap();
+    let identity = match &*identity_lock {
+        Some(id) => id,
+        None => return -2,
+    };
+
+    let recipient_id_str = unsafe {
+        if recipient_id.is_null() {
+            return ERR_NULL_POINTER;
+        }
+        match CStr::from_ptr(recipient_id).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERR_UTF8_ERROR,
+        }
+    };
+
+    let status = match status_type {
+        0 => StatusType::Ok,
+        1 => StatusType::Busy,
+        2 => StatusType::Later,
+        _ => return -3, // INVALID_ARGUMENT
+    };
+
+    let message = Message::status(identity.id.clone(), status);
+
+    let policy_lock = state.policy_manager.try_read().unwrap();
+    if let Err(_) = policy_lock.validate_message(&message) {
+        return -4;
+    }
+
+    match create_and_send_packet_to(&state, message, recipient_id_str) {
+        Ok(_) => 0,
+        Err(_) => -5,
+    }
+}
+
+/// Отправить текст конкретному получателю
+#[no_mangle]
+pub extern "C" fn ya_ok_send_text_to(text: *const c_char, recipient_id: *const c_char) -> c_int {
+    let state = match get_core_state() {
+        Ok(state) => state,
+        Err(_) => return -1,
+    };
+
+    let identity_lock = state.identity.try_read().unwrap();
+    let identity = match &*identity_lock {
+        Some(id) => id,
+        None => return -2,
+    };
+
+    let text_str = unsafe {
+        if text.is_null() {
+            return ERR_NULL_POINTER;
+        }
+        match CStr::from_ptr(text).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERR_UTF8_ERROR,
+        }
+    };
+
+    let recipient_id_str = unsafe {
+        if recipient_id.is_null() {
+            return ERR_NULL_POINTER;
+        }
+        match CStr::from_ptr(recipient_id).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERR_UTF8_ERROR,
+        }
+    };
+
+    let message = match Message::text(identity.id.clone(), text_str.to_string()) {
+        Ok(msg) => msg,
+        Err(_) => return -9,
+    };
+
+    let policy_lock = state.policy_manager.try_read().unwrap();
+    if let Err(_) = policy_lock.validate_message(&message) {
+        return -4;
+    }
+
+    match create_and_send_packet_to(&state, message, recipient_id_str) {
+        Ok(_) => 0,
+        Err(_) => -5,
+    }
+}
+
+/// Отправить голос конкретному получателю
+#[no_mangle]
+pub extern "C" fn ya_ok_send_voice_to(data: *const u8, len: c_int, recipient_id: *const c_char) -> c_int {
+    let state = match get_core_state() {
+        Ok(state) => state,
+        Err(_) => return -1,
+    };
+
+    let identity_lock = state.identity.try_read().unwrap();
+    let identity = match &*identity_lock {
+        Some(id) => id,
+        None => return -2,
+    };
+
+    if data.is_null() || len <= 0 {
+        return ERR_NULL_POINTER;
+    }
+
+    let recipient_id_str = unsafe {
+        if recipient_id.is_null() {
+            return ERR_NULL_POINTER;
+        }
+        match CStr::from_ptr(recipient_id).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERR_UTF8_ERROR,
+        }
+    };
+
+    let slice = unsafe { slice::from_raw_parts(data, len as usize) };
+    let message = match Message::voice(identity.id.clone(), slice.to_vec()) {
+        Ok(msg) => msg,
+        Err(_) => return -9,
+    };
+
+    let policy_lock = state.policy_manager.try_read().unwrap();
+    if let Err(_) = policy_lock.validate_message(&message) {
+        return -4;
+    }
+
+    match create_and_send_packet_to(&state, message, recipient_id_str) {
+        Ok(_) => 0,
+        Err(_) => -5,
+    }
+}
+
+/// Вспомогательная функция для отправки пакета конкретному получателю
+fn create_and_send_packet_to(
+    state: &Arc<CoreState>,
+    message: Message,
+    recipient_id: &str,
+) -> Result<(), ApiError> {
+    let identity_lock = state.identity.try_read().unwrap();
+    let identity = identity_lock.as_ref().ok_or(ApiError::NotInitialized)?;
+
+    println!("📤 create_and_send_packet_to: recipient={}", recipient_id);
+
+    // Сохраняем сообщение
+    state.storage.lock().unwrap().store_message(&message)?;
+    
+    // Получаем информацию о конкретном пире
+    let router = &state.router;
+    let runtime = get_runtime().map_err(|_| ApiError::RuntimeNotAvailable)?;
+    let handle = runtime.handle();
+    
+    let known_peers = handle.block_on(async {
+        router.known_peers().read().await.clone()
+    });
+    
+    println!("📤 Known peers count: {}", known_peers.len());
+    
+    // Находим конкретного получателя
+    if let Some(peer) = known_peers.get(recipient_id) {
+        println!("📤 Found peer: {} at {:?}", recipient_id, peer.transport_type);
+        if let Some(x25519_key_bytes) = &peer.x25519_public_key {
+            println!("📤 Peer has x25519 key, length={}", x25519_key_bytes.len());
+            if x25519_key_bytes.len() == 32 {
+                let mut receiver_key = [0u8; 32];
+                receiver_key.copy_from_slice(x25519_key_bytes);
+                
+                if let Ok(packet) = Packet::from_message(&message, identity, &receiver_key) {
+                    println!("✅ Created encrypted packet, sending...");
+                    let _ = handle.block_on(async {
+                        router.send_to(&packet, recipient_id).await
+                    });
+                    println!("✅ Packet sent successfully");
+                    return Ok(());
+                } else {
+                    println!("❌ Failed to create packet from message");
+                }
+            } else {
+                println!("❌ x25519 key length invalid: {}", x25519_key_bytes.len());
+            }
+        } else {
+            println!("❌ Peer has no x25519 key");
+        }
+    } else {
+        println!("❌ Peer not found in known_peers: {}", recipient_id);
+    }
+    
+    // Если получатель не найден или нет ключа, возвращаем ошибку
+    println!("❌ create_and_send_packet_to failed");
+    Err(ApiError::InvalidParameters)
+}
+
 fn handle_incoming_packet_internal(
     state: &Arc<CoreState>,
     bytes: &[u8],
     peer_info: Option<(TransportType, String)>,
 ) -> c_int {
+    println!("📥 handle_incoming_packet_internal: bytes={}, peer_info={:?}", bytes.len(), peer_info);
     // Десериализуем Packet из CBOR
     let packet = match Packet::from_bytes(bytes) {
-        Ok(p) => p,
-        Err(_) => return -9, // DESERIALIZATION_ERROR
+        Ok(p) => {
+            println!("📥 Packet deserialized: sender={}", p.sender_id);
+            p
+        },
+        Err(e) => {
+            println!("❌ Packet deserialization error: {:?}", e);
+            return -9; // DESERIALIZATION_ERROR
+        }
     };
 
     // Получаем identity получателя
@@ -691,6 +910,7 @@ fn handle_incoming_packet_internal(
 
     // Если есть информация о пиру, обновляем known_peers
     if let Some((transport_type, address)) = peer_info {
+        println!("📥 Updating peer: {} at {} via {:?}", packet.sender_id, address, transport_type);
         let peer = Peer {
             id: packet.sender_id.clone(),
             transport_type,
@@ -711,18 +931,26 @@ fn handle_incoming_packet_internal(
         let _ = handle.block_on(async {
             state.router.update_peers(vec![peer]).await;
         });
+        println!("✅ Peer updated in router");
     }
 
     // Пытаемся расшифровать
     let message_result = packet.decrypt(receiver_identity);
+    if let Ok(ref msg) = message_result {
+        println!("✅ Message decrypted successfully");
+    } else {
+        println!("⚠️ Message decryption failed (might be for relay)");
+    }
 
     // Обрабатываем пакет через router
     let routing_result = handle.block_on(async { state.router.handle_packet(packet.clone()).await });
+    println!("📥 Router result: {:?}", routing_result.is_ok());
 
     match routing_result {
         Ok(_) => {
             // Если удалось расшифровать, обрабатываем сообщение
             if let Ok(message) = message_result {
+                println!("📥 Processing decrypted message");
                 let mut stored = true;
                 if let MessagePayload::Text(text) = &message.payload {
                     if let Ok(Some(gossip_msg)) = crate::sync::Gossip::decode_gossip(text) {

@@ -12,6 +12,9 @@ object YaOkCore {
     @JvmStatic external fun sendStatus(statusType: Int): Int
     @JvmStatic external fun sendText(text: String): Int
     @JvmStatic external fun sendVoice(data: ByteArray): Int
+    @JvmStatic external fun sendStatusTo(statusType: Int, recipientId: String): Int
+    @JvmStatic external fun sendTextTo(text: String, recipientId: String): Int
+    @JvmStatic external fun sendVoiceTo(data: ByteArray, recipientId: String): Int
     @JvmStatic external fun startListening(): Int
     @JvmStatic external fun stopListening(): Int
     @JvmStatic external fun setPolicy(policyType: Int): Int

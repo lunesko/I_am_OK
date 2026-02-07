@@ -27,6 +27,9 @@ pub struct Identity {
     /// Публичный ключ для верификации (Ed25519)
     pub public_key: VerifyingKey,
     /// Приватный ключ для подписи (хранится в зашифрованном виде)
+    #[cfg(test)]
+    pub signing_key: Option<SigningKey>,
+    #[cfg(not(test))]
     signing_key: Option<SigningKey>,
     /// X25519 приватный ключ для ECDH (для шифрования)
     pub(crate) x25519_secret: Option<StaticSecret>,

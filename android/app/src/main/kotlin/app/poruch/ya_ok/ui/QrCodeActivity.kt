@@ -30,12 +30,19 @@ class QrCodeActivity : AppCompatActivity() {
         }
 
         val x25519Hex = try {
-            CoreGateway.getIdentityX25519PublicKeyHex().orEmpty()
+            val key = CoreGateway.getIdentityX25519PublicKeyHex()
+            println("🔑 X25519 key from CoreGateway: ${key ?: "NULL"}")
+            key.orEmpty()
         } catch (e: UnsatisfiedLinkError) {
+            println("❌ UnsatisfiedLinkError: ${e.message}")
             ""  // Fallback if JNI function not available yet
         }
         val link = buildQrLink(identityId, x25519Hex)
-        findViewById<TextView>(R.id.identityIdText).text = identityId
+        
+        // DEBUG: Show QR content on screen
+        val debugText = "QR: $link"
+        findViewById<TextView>(R.id.identityIdText).text = debugText
+        
         // QR should encode a shareable deep link, not just raw ID.
         findViewById<ImageView>(R.id.qrCodeImage).setImageBitmap(generateQrCode(link))
         findViewById<TextView>(R.id.closeButton).setOnClickListener { finish() }
@@ -168,6 +175,11 @@ class QrCodeActivity : AppCompatActivity() {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         
+        println("🔵 QR Generation:")
+        println("  - identityId: $identityId")
+        println("  - x25519Hex: ${if (x25519Hex.isNotBlank()) "✅ ${x25519Hex.length} chars" else "❌ EMPTY"}")
+        println("  - userName: ${userName ?: "❌ NULL"}")
+        
         val params = buildString {
             append("id=$identityId")
             if (x25519Hex.isNotBlank()) {
@@ -177,7 +189,9 @@ class QrCodeActivity : AppCompatActivity() {
                 append("&name=${android.net.Uri.encode(userName)}")
             }
         }
-        return "yaok://add?$params"
+        val qrUrl = "yaok://add?$params"
+        println("  - Final QR: $qrUrl")
+        return qrUrl
     }
 
     private fun generateQrCode(text: String): Bitmap {

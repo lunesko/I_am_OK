@@ -11,6 +11,14 @@ pub mod wifi_direct;
 pub mod udp;
 pub mod satellite;
 pub mod chunking;
+pub mod dtls;
+
+#[cfg(test)]
+mod udp_tests;
+#[cfg(test)]
+mod dtls_tests;
+#[cfg(test)]
+mod ble_tests;
 
 use crate::core::Packet;
 use async_trait::async_trait;
@@ -169,4 +177,13 @@ pub enum TransportError {
 
     #[error("MTU exceeded")]
     MtuExceeded,
+
+    #[error("Security error: {0}")]
+    SecurityError(String),
+
+    #[error("Transport not supported")]
+    NotSupported,
+    
+    #[error("Already listening")]
+    AlreadyListening,
 }

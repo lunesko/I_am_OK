@@ -20,6 +20,12 @@ object CoreGateway {
     fun sendText(text: String): Int = YaOkCore.sendText(text)
 
     fun sendVoice(data: ByteArray): Int = YaOkCore.sendVoice(data)
+    
+    fun sendStatusTo(statusType: Int, recipientId: String): Int = YaOkCore.sendStatusTo(statusType, recipientId)
+
+    fun sendTextTo(text: String, recipientId: String): Int = YaOkCore.sendTextTo(text, recipientId)
+
+    fun sendVoiceTo(data: ByteArray, recipientId: String): Int = YaOkCore.sendVoiceTo(data, recipientId)
 
     fun getRecentMessages(limit: Int): String? = YaOkCore.getRecentMessages(limit)
 

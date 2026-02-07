@@ -177,41 +177,51 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                 
                 ContactStore.addContact(requireContext(), Contact(qrData.id, name))
                 
-                // Sync peer with Core for E2E encryption
+                // CRITICAL: Add peer with x25519 key for bidirectional communication
+                var peerAdded = false
                 if (!qrData.x25519Hex.isNullOrBlank()) {
                     val result = CoreGateway.addPeer(qrData.id, qrData.x25519Hex)
-                    if (result == 0) {
-                        // Send auto-add request to other user
-                        val myId = CoreGateway.getIdentityId()
-                        val myName = requireContext().getSharedPreferences("ya_ok_prefs", Context.MODE_PRIVATE)
-                            .getString("user_name", "Користувач")
-                        val myX25519 = try {
-                            CoreGateway.getIdentityX25519PublicKeyHex()
-                        } catch (e: UnsatisfiedLinkError) {
-                            null
+                    println("✅ Added peer key for ${qrData.id}: result=$result")
+                    peerAdded = (result == 0)
+                } else {
+                    println("⚠️ QR код без x25519 ключа, двостороння комунікація неможлива")
+                }
+                
+                // Send bidirectional add request ONLY if peer was added successfully
+                if (peerAdded) {
+                    // Send auto-add request to other user
+                    val myId = CoreGateway.getIdentityId()
+                    val myName = requireContext().getSharedPreferences("ya_ok_prefs", Context.MODE_PRIVATE)
+                        .getString("user_name", "Користувач")
+                    val myX25519 = try {
+                        CoreGateway.getIdentityX25519PublicKeyHex()
+                    } catch (e: UnsatisfiedLinkError) {
+                        null
+                    }
+                    
+                    println("🔵 Sending contact_add_request: id=$myId, name=$myName, to=${qrData.id}")
+                    
+                    // Send special message with contact info for auto-add
+                    val addRequestJson = buildString {
+                        append("{\"type\":\"contact_add_request\",")
+                        append("\"id\":\"$myId\",")
+                        append("\"name\":\"$myName\"")
+                        if (!myX25519.isNullOrBlank()) {
+                            append(",\"x25519\":\"$myX25519\"")
                         }
-                        
-                        println("🔵 Sending contact_add_request: id=$myId, name=$myName")
-                        
-                        // Send special message with contact info for auto-add
-                        val addRequestJson = buildString {
-                            append("{\"type\":\"contact_add_request\",")
-                            append("\"id\":\"$myId\",")
-                            append("\"name\":\"$myName\"")
-                            if (!myX25519.isNullOrBlank()) {
-                                append(",\"x25519\":\"$myX25519\"")
-                            }
-                            append("}")
-                        }
-                        val sendResult = CoreGateway.sendText(addRequestJson)
-                        println("🔵 SendText result: $sendResult")
-                        
-                        Toast.makeText(requireContext(), "✅ Людину додано і синхронізовано", Toast.LENGTH_SHORT).show()
+                        append("}")
+                    }
+                    // Send to specific contact (peer exists now)
+                    val sendResult = CoreGateway.sendTextTo(addRequestJson, qrData.id)
+                    println("🔵 SendTextTo result: $sendResult (to ${qrData.id})")
+                    
+                    if (sendResult == 0) {
+                        Toast.makeText(requireContext(), "✅ Контакт додано і синхронізовано", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(requireContext(), "⚠️ Людину додано (код синхронізації: $result)", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), "⚠️ Контакт додано, синхронізація: код $sendResult", Toast.LENGTH_SHORT).show()
                     }
                 } else {
-                    Toast.makeText(requireContext(), "Людину додано", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "⚠️ Контакт додано, але потрібен QR код з ключем", Toast.LENGTH_SHORT).show()
                 }
                 
                 renderContacts()
@@ -240,10 +250,51 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
             val uri = runCatching { android.net.Uri.parse(trimmed) }.getOrNull()
             val id = uri?.getQueryParameter("id")?.trim().orEmpty()
             val x = uri?.getQueryParameter("x")?.trim()
-            val name = uri?.getQueryParameter("name")?.trim()
+            val name = uri?.getQueryParameter("name")?.trim()?.let { 
+                // Decode URL-encoded name
+                android.net.Uri.decode(it)
+            }
             val normalizedId = if (id.isNotBlank()) id else normalizeContactId(trimmed)
             return ContactQr(normalizedId, x?.takeIf { it.isNotBlank() }, name?.takeIf { it.isNotBlank() })
         }
         return ContactQr(normalizeContactId(trimmed), null, null)
+    }
+    
+    /**
+     * Show dialog for selecting recipients (one, multiple, or all contacts)
+     * Returns selected contact IDs via callback
+     */
+    fun showContactSelectionDialog(callback: (List<String>) -> Unit) {
+        val contacts = ContactStore.getContacts(requireContext())
+        if (contacts.isEmpty()) {
+            Toast.makeText(requireContext(), "Спочатку додайте контакти", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val contactNames = contacts.map { it.name }.toTypedArray()
+        val selectedIndices = mutableSetOf<Int>()
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("Оберіть одержувачів")
+            .setMultiChoiceItems(contactNames, null) { _, which, isChecked ->
+                if (isChecked) {
+                    selectedIndices.add(which)
+                } else {
+                    selectedIndices.remove(which)
+                }
+            }
+            .setPositiveButton("Надіслати") { _, _ ->
+                if (selectedIndices.isEmpty()) {
+                    Toast.makeText(requireContext(), "Оберіть хоча б одного одержувача", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val selectedIds = selectedIndices.map { contacts[it].id }
+                callback(selectedIds)
+            }
+            .setNeutralButton("Всім") { _, _ ->
+                callback(contacts.map { it.id })
+            }
+            .setNegativeButton("Скасувати", null)
+            .show()
     }
 }

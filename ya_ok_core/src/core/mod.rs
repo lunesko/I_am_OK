@@ -14,6 +14,17 @@ pub mod message;
 pub mod packet;
 pub mod ack;
 
+#[cfg(test)]
+mod crypto_tests;
+#[cfg(test)]
+mod identity_tests;
+#[cfg(test)]
+mod message_tests;
+#[cfg(test)]
+mod packet_tests;
+#[cfg(test)]
+mod ack_tests;
+
 pub use identity::*;
 pub use identity_store::*;
 pub use peer_store::*;

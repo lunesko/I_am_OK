@@ -10,6 +10,7 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import app.poruch.ya_ok.R
 import app.poruch.ya_ok.core.CoreGateway
+import com.google.android.material.tabs.TabLayout
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -20,6 +21,12 @@ import android.util.Base64
 
 class InboxFragment : Fragment(R.layout.fragment_inbox) {
     private lateinit var messagesContainer: LinearLayout
+    private var tabLayout: TabLayout? = null
+    private var currentTab = TabType.ALL
+
+    private enum class TabType {
+        ALL, INCOMING, OUTGOING
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -27,6 +34,32 @@ class InboxFragment : Fragment(R.layout.fragment_inbox) {
             (activity as? Navigator)?.navigateBack()
         }
         messagesContainer = view.findViewById(R.id.messagesContainer)
+        
+        // Setup tabs
+        tabLayout = view.findViewById<TabLayout>(R.id.tabLayout)?.apply {
+            addTab(newTab().setText("Всі"))
+            addTab(newTab().setText("Вхідні"))
+            addTab(newTab().setText("Вихідні"))
+            
+            addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+                override fun onTabSelected(tab: TabLayout.Tab?) {
+                    currentTab = when (tab?.position) {
+                        1 -> TabType.INCOMING
+                        2 -> TabType.OUTGOING
+                        else -> TabType.ALL
+                    }
+                    renderMessages()
+                }
+                
+                override fun onTabUnselected(tab: TabLayout.Tab?) {}
+                override fun onTabReselected(tab: TabLayout.Tab?) {}
+            })
+        }
+        
+        if (tabLayout == null) {
+            currentTab = TabType.ALL
+        }
+        
         renderMessages()
     }
 
@@ -44,9 +77,25 @@ class InboxFragment : Fragment(R.layout.fragment_inbox) {
             return
         }
 
+        val myId = CoreGateway.getIdentityId()
         val inflater = LayoutInflater.from(requireContext())
+        var messageCount = 0
+        
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue
+            val senderId = obj.optString("sender_id")
+            
+            // Filter by tab
+            val isOutgoing = senderId == myId
+            val shouldShow = when (currentTab) {
+                TabType.ALL -> true
+                TabType.INCOMING -> !isOutgoing
+                TabType.OUTGOING -> isOutgoing
+            }
+            
+            if (!shouldShow) continue
+            messageCount++
+            
             val item = inflater.inflate(R.layout.item_message, messagesContainer, false)
 
             val messageTitle = item.findViewById<TextView>(R.id.messageTitle)
@@ -57,8 +106,10 @@ class InboxFragment : Fragment(R.layout.fragment_inbox) {
             val display = buildDisplay(obj)
             messageTitle.text = display.title
             messageEmoji.text = display.emoji
-            messageSubtitle.text = display.time
-            val senderId = obj.optString("sender_id")
+            
+            // Add direction indicator
+            val direction = if (isOutgoing) "➤" else "◀"
+            messageSubtitle.text = "$direction ${display.time}"
             messageMeta.text = if (senderId.isNotBlank()) senderId.take(6) else "•"
 
             item.setOnClickListener {
@@ -68,6 +119,19 @@ class InboxFragment : Fragment(R.layout.fragment_inbox) {
             }
 
             messagesContainer.addView(item)
+        }
+        
+        if (messageCount == 0) {
+            val empty = TextView(requireContext()).apply {
+                text = when (currentTab) {
+                    TabType.INCOMING -> "Немає вхідних повідомлень"
+                    TabType.OUTGOING -> "Немає вихідних повідомлень"
+                    else -> getString(R.string.inbox_empty)
+                }
+                setTextColor(resources.getColor(R.color.text_secondary, null))
+                textSize = 14f
+            }
+            messagesContainer.addView(empty)
         }
     }
 

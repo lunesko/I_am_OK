@@ -105,6 +105,78 @@ pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_sendVoice(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_sendStatusTo(
+    mut env: JNIEnv,
+    _class: JClass,
+    status_type: jint,
+    recipient_id: JString,
+) -> jint {
+    let recipient: String = match env.get_string(&recipient_id) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+
+    let c_recipient = match CString::new(recipient) {
+        Ok(s) => s,
+        Err(_) => return -8,
+    };
+
+    ya_ok_send_status_to(status_type as i32, c_recipient.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_sendTextTo(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+    recipient_id: JString,
+) -> jint {
+    let text: String = match env.get_string(&text) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+    let recipient: String = match env.get_string(&recipient_id) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+
+    let c_text = match CString::new(text) {
+        Ok(s) => s,
+        Err(_) => return -8,
+    };
+    let c_recipient = match CString::new(recipient) {
+        Ok(s) => s,
+        Err(_) => return -8,
+    };
+
+    ya_ok_send_text_to(c_text.as_ptr(), c_recipient.as_ptr()) as jint
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_sendVoiceTo(
+    mut env: JNIEnv,
+    _class: JClass,
+    data: JByteArray,
+    recipient_id: JString,
+) -> jint {
+    let bytes = match env.convert_byte_array(data) {
+        Ok(b) => b,
+        Err(_) => return -8,
+    };
+    let recipient: String = match env.get_string(&recipient_id) {
+        Ok(s) => s.into(),
+        Err(_) => return -8,
+    };
+
+    let c_recipient = match CString::new(recipient) {
+        Ok(s) => s,
+        Err(_) => return -8,
+    };
+
+    ya_ok_send_voice_to(bytes.as_ptr(), bytes.len() as i32, c_recipient.as_ptr()) as jint
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_startListening(
     _env: JNIEnv,
     _class: JClass,

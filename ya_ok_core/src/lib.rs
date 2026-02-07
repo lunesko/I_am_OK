@@ -26,6 +26,7 @@ pub mod storage;
 pub mod sync;
 pub mod policy;
 pub mod api;
+pub mod security;
 
 // Re-exports for convenience
 pub use core::*;
