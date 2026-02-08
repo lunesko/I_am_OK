@@ -1,7 +1,6 @@
 //! UDP транспорт с поддержкой DTLS (UDP over TLS)
 
 use crate::transport::{Transport, TransportType, TransportError, Peer};
-use crate::core::Packet;
 use async_trait::async_trait;
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
@@ -81,6 +80,7 @@ impl UdpTransport {
     /// 
     /// Addresses FR-RELAY-001-05: System SHALL verify relay TLS certificate
     #[deprecated(note = "Certificate pinning is now handled by dtls::PinnedCertVerifier")]
+    #[allow(dead_code)]
     pub(crate) fn verify_certificate_pin(&self, cert_fingerprint: &str) -> Result<(), TransportError> {
         if let Some(ref pinned) = self.config.pinned_cert_fingerprint {
             if cert_fingerprint != pinned {

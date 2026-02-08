@@ -13,6 +13,7 @@ use tokio::sync::Mutex;
 const YAOK_SERVICE_UUID: &str = "0000CAFE-0000-1000-8000-00805f9b34fb";
 
 /// BLE Characteristic UUID для packet передачи
+#[allow(dead_code)]
 const YAOK_PACKET_CHAR_UUID: &str = "0000BEEF-0000-1000-8000-00805f9b34fb";
 
 /// Platform-specific BLE interface (FFI)

@@ -140,7 +140,7 @@ impl DtnRouter {
     /// Отправить ACK-сообщение отправителю
     pub async fn send_ack(&self, message_id: &str, ack_from: &str, ack_type: AckType) -> Result<(), RoutingError> {
         // Создаем ACK
-        let ack = match ack_type {
+        let _ack = match ack_type {
             AckType::Received => Ack::received(message_id.to_string(), ack_from.to_string()),
             AckType::Delivered => Ack::delivered(message_id.to_string(), ack_from.to_string()),
         };

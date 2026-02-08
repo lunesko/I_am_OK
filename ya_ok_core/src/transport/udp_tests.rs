@@ -28,6 +28,7 @@ mod udp_tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_certificate_pinning_success() {
         let config = UdpTransportConfig {
             relay_url: "relay.example.com:40100".to_string(),
@@ -43,6 +44,7 @@ mod udp_tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_certificate_pinning_failure() {
         let config = UdpTransportConfig {
             relay_url: "relay.example.com:40100".to_string(),

@@ -10,7 +10,7 @@
 //!   * Desktop: Encrypted config file
 //! - Используют PBKDF2 для derivation
 
-use sha2::{Sha256, Digest};
+use sha2::Digest;
 use rand::{RngCore, rngs::OsRng};
 use std::path::Path;
 use std::fs;

@@ -379,7 +379,7 @@ pub extern "C" fn ya_ok_core_init() -> c_int {
 /// Инициализация с базовой директорией
 #[no_mangle]
 pub extern "C" fn ya_ok_core_init_with_path(base_dir: *const c_char) -> c_int {
-    let runtime = match get_runtime() {
+    let _runtime = match get_runtime() {
         Ok(rt) => rt,
         Err(_) => return ERR_INTERNAL_ERROR,
     };
@@ -936,7 +936,7 @@ fn handle_incoming_packet_internal(
 
     // Пытаемся расшифровать
     let message_result = packet.decrypt(receiver_identity);
-    if let Ok(ref msg) = message_result {
+    if let Ok(ref _msg) = message_result {
         println!("✅ Message decrypted successfully");
     } else {
         println!("⚠️ Message decryption failed (might be for relay)");

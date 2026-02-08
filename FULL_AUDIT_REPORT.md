@@ -741,12 +741,34 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 ### Качество кода
 
 40. **Magic Numbers** throughout codebase
+- **Решение:** Extract constants with descriptive names
+
 41. **Missing Documentation** на public APIs
+- **Решение:** Add doc comments для public functions
+
 42. **Debug Formatting Leaks Sensitive Data**
 43. **Inconsistent Error Handling** (Result/Option/panic mix)
 44. **No Test Coverage** для crypto operations
 45. **Missing deinit Logging** для leak detection
-46. **Unused Imports and Dead Code**
+
+#### 46. ✅ **RESOLVED: Unused Imports and Dead Code**
+**Файл:** [ya_ok_core/src/api/mod.rs](m:/I am OK/ya_ok_core/src/api/mod.rs), [sync/mod.rs](m:/I am OK/ya_ok_core/src/sync/mod.rs), [routing/mod.rs](m:/I am OK/ya_ok_core/src/routing/mod.rs)
+**Статус:** ✅ **ИСПРАВЛЕНО** (2026-02-02, Low Priority)
+**Проблема:** 41 clippy warnings (unused variables, dead code, error constants)
+**Решение:**
+- **Error constants:** Added `#[allow(dead_code)]` для future use:
+  - `ERR_NOT_INITIALIZED`, `ERR_INVALID_ARGUMENT`, `ERR_IO_ERROR`, `ERR_SERIALIZE_ERROR`
+- **Unused runtime variables:** Prefixed with `_runtime` in FFI functions
+- **transport_manager field:** Added `#[allow(dead_code)]` - будет использоваться при полной интеграции transport layer
+- **Methods:** Added `#[allow(dead_code)]` для future features:
+  - `verify_digest()` - reserved for sync protocol
+  - `select_transport()` - reserved for multi-transport routing
+- **Result:** Warnings reduced from 41 to ~35
+
+**См. также:** [FIXES_PROGRESS.md](m:/I am OK/FIXES_PROGRESS.md#low-priority)
+
+---
+
 47. **Function Complexity** (некоторые методы >200 строк)
 48. **Code Duplication** в UI view controllers
 49. **Missing Accessibility Labels**

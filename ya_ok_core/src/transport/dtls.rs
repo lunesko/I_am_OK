@@ -15,6 +15,7 @@ pub struct PinnedCertVerifier {
     /// Optional pinned certificate SHA-256 fingerprint (hex format with colons)
     pinned_fingerprint: Option<String>,
     /// Root cert store for standard verification
+    #[allow(dead_code)]
     root_store: Arc<RootCertStore>,
 }
 
