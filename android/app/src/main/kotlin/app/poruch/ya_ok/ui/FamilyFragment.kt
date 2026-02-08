@@ -115,6 +115,13 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                     .toString()
             } ?: "Ще не бачив"
             item.findViewById<TextView>(R.id.contactTime).text = timeText
+            
+            // Add long press to delete contact
+            item.setOnLongClickListener {
+                showDeleteContactDialog(contact)
+                true
+            }
+            
             contactsContainer.addView(item)
         }
     }
@@ -293,6 +300,19 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
             }
             .setNeutralButton("Всім") { _, _ ->
                 callback(contacts.map { it.id })
+            }
+            .setNegativeButton("Скасувати", null)
+            .show()
+    }
+
+    private fun showDeleteContactDialog(contact: Contact) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Видалити контакт?")
+            .setMessage("Ви впевнені, що хочете видалити ${contact.name}?")
+            .setPositiveButton("Видалити") { _, _ ->
+                ContactStore.removeContact(requireContext(), contact.id)
+                Toast.makeText(requireContext(), "${contact.name} видалено", Toast.LENGTH_SHORT).show()
+                renderContacts()
             }
             .setNegativeButton("Скасувати", null)
             .show()

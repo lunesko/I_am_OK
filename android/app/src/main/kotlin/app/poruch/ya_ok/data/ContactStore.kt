@@ -47,4 +47,14 @@ object ContactStore {
         }
         saveContacts(context, updated)
     }
+
+    fun removeContact(context: Context, contactId: String) {
+        val contacts = getContacts(context)
+        val filtered = contacts.filter { it.id != contactId }
+        saveContacts(context, filtered)
+    }
+
+    fun hasContact(context: Context, contactId: String): Boolean {
+        return getContacts(context).any { it.id == contactId }
+    }
 }

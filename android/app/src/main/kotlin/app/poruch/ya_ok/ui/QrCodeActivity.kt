@@ -29,6 +29,18 @@ class QrCodeActivity : AppCompatActivity() {
             return
         }
 
+        // Check if user name is set, show warning if not
+        val prefs = getSharedPreferences("ya_ok_prefs", MODE_PRIVATE)
+        val userName = prefs.getString("user_name", null)?.trim()?.takeIf { it.isNotBlank() }
+        
+        if (userName == null) {
+            android.widget.Toast.makeText(
+                this,
+                "⚠️ Рекомендуємо встановити ім'я в налаштуваннях",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+
         val x25519Hex = try {
             val key = CoreGateway.getIdentityX25519PublicKeyHex()
             println("🔑 X25519 key from CoreGateway: ${key ?: "NULL"}")
@@ -39,9 +51,22 @@ class QrCodeActivity : AppCompatActivity() {
         }
         val link = buildQrLink(identityId, x25519Hex)
         
-        // DEBUG: Show QR content on screen
-        val debugText = "QR: $link"
-        findViewById<TextView>(R.id.identityIdText).text = debugText
+        // Show user-friendly info about what's included in QR
+        val infoText = buildString {
+            append("Мій QR-код\n")
+            if (userName != null) {
+                append("📝 Ім'я: $userName\n")
+            } else {
+                append("⚠️ Ім'я не вказано\n")
+            }
+            if (x25519Hex.isNotBlank()) {
+                append("🔐 Ключ: включено\n")
+            } else {
+                append("⚠️ Ключ: відсутній\n")
+            }
+            append("\nПокажіть цей код іншій людині для додавання")
+        }
+        findViewById<TextView>(R.id.identityIdText).text = infoText
         
         // QR should encode a shareable deep link, not just raw ID.
         findViewById<ImageView>(R.id.qrCodeImage).setImageBitmap(generateQrCode(link))
