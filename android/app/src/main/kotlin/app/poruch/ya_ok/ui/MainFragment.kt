@@ -413,13 +413,13 @@ class MainFragment : Fragment(R.layout.fragment_main) {
         println("📤 === SEND DIAGNOSTICS START ===")
         println("📤 Recipients: ${recipientIds.size} contacts")
         
-        // Check peer registration
-        val peerList = CoreGateway.getPeerList()
-        println("📤 Registered peers: $peerList")
+        // Check peer registration (temporarily disabled - JNI binding not ready)
+        // val peerList = CoreGateway.getPeerList()
+        // println("📤 Registered peers: $peerList")
         
-        // Check core stats
-        val stats = CoreGateway.getStats()
-        println("📤 Core stats: $stats")
+        // Check core stats (temporarily disabled - JNI binding not ready)
+        // val stats = CoreGateway.getStats()
+        // println("📤 Core stats: $stats")
         
         var successCount = 0
         var failCount = 0
@@ -682,12 +682,14 @@ class MainFragment : Fragment(R.layout.fragment_main) {
     }
 
     private fun getPeerCount(): Int {
-        val peerList = CoreGateway.getPeerList() ?: return 0
-        return try {
-            org.json.JSONArray(peerList).length()
-        } catch (e: Exception) {
-            println("❌ Peer count parse error: ${e.message}")
-            0
-        }
+        // TODO: Re-enable when getPeerList JNI binding is working
+        // val peerList = CoreGateway.getPeerList() ?: return 0
+        // return try {
+        //     org.json.JSONArray(peerList).length()
+        // } catch (e: Exception) {
+        //     println("❌ Peer count parse error: ${e.message}")
+        //     0
+        // }
+        return 0 // Temporary: return 0 peers
     }
 }

@@ -225,6 +225,29 @@ pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getStats(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getPeerList(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    let ptr = ya_ok_peer_store_list();
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let c_str = unsafe { CStr::from_ptr(ptr) };
+    let java_str = match env.new_string(c_str.to_string_lossy().as_ref()) {
+        Ok(s) => s,
+        Err(_) => {
+            ya_ok_free_string(ptr);
+            return std::ptr::null_mut();
+        }
+    };
+
+    ya_ok_free_string(ptr);
+    java_str.into_raw()
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getIdentityX25519PublicKeyHex(
     env: JNIEnv,
     _class: JClass,
