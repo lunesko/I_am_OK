@@ -13,6 +13,7 @@ use crate::core::ack::{Ack, AckType};
 use crate::storage::Storage;
 use crate::transport::{TransportManager, Peer};
 use queue::{DtnQueue, QueuedPacket};
+use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
@@ -35,7 +36,7 @@ pub trait Router {
 
 /// DTN маршрутизатор
 pub struct DtnRouter {
-    storage: Storage,
+    storage: Arc<Mutex<Storage>>,
     transport_manager: TransportManager,
     /// Кэш известных узлов
     known_peers: RwLock<HashMap<String, Peer>>,
@@ -46,7 +47,7 @@ pub struct DtnRouter {
 }
 
 impl DtnRouter {
-    pub fn new(storage: Storage, transport_manager: TransportManager) -> Self {
+    pub fn new(storage: Arc<Mutex<Storage>>, transport_manager: TransportManager) -> Self {
         Self {
             storage,
             transport_manager,
@@ -150,7 +151,7 @@ impl DtnRouter {
             AckType::Received => "Received",
             AckType::Delivered => "Delivered",
         };
-        self.storage.store_ack(message_id, ack_from, ack_type_str)?;
+        self.storage.lock().unwrap().store_ack(message_id, ack_from, ack_type_str)?;
 
         // TODO: Отправить ACK отправителю оригинального сообщения
         // Это потребует создания специального ACK пакета
@@ -166,7 +167,7 @@ impl DtnRouter {
         };
 
         // Сохраняем ACK
-        self.storage.store_ack(&ack.message_id, &ack.ack_from, ack_type_str)?;
+        self.storage.lock().unwrap().store_ack(&ack.message_id, &ack.ack_from, ack_type_str)?;
 
         Ok(())
     }
@@ -184,13 +185,13 @@ impl Router for DtnRouter {
         }
 
         // Проверяем дедупликацию
-        if self.storage.is_message_seen(&packet.message_id)? {
+        if self.storage.lock().unwrap().is_message_seen(&packet.message_id)? {
             stats.duplicate_packets += 1;
             return Ok(()); // Уже видели
         }
 
         // Помечаем как seen
-        self.storage.mark_message_seen(&packet.message_id)?;
+        self.storage.lock().unwrap().mark_message_seen(&packet.message_id)?;
 
         // Отправляем Received ACK отправителю
         // TODO: получить peer_id текущего узла из конфигурации

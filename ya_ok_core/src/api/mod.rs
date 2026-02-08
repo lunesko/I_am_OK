@@ -196,10 +196,10 @@ impl CoreState {
     fn new_with_paths(paths: CorePaths) -> Result<Self, ApiError> {
         let storage = Arc::new(Mutex::new(Storage::new(&paths.storage_db)?));
         let transport_manager = TransportManager::new();
-        let router = DtnRouter::new(Storage::new(&paths.storage_db)?, TransportManager::new());
+        let router = DtnRouter::new(storage.clone(), TransportManager::new());
         let identity = load_identity(&paths.identity_file).ok().flatten();
         let identity = Arc::new(RwLock::new(identity));
-        let gossip = Gossip::new(Storage::new(&paths.storage_db)?, TransportManager::new(), identity.clone());
+        let gossip = Gossip::new(storage.clone(), TransportManager::new(), identity.clone());
 
         Ok(Self {
             identity,

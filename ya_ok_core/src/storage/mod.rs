@@ -4,7 +4,6 @@
 //! Использует SQLite для структурированных данных.
 
 use crate::core::Message;
-use crate::security::KeyManager;
 use rusqlite::{Connection, Result as SqlResult};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -32,13 +31,9 @@ pub struct StoredMessage {
 /// # Thread Safety
 /// rusqlite::Connection is !Sync due to internal RefCell, but is Send.
 /// When wrapped in Arc<Mutex<Storage>>, it's safe to share across threads.
-/// This explicit Sync implementation is safe because Mutex guarantees exclusive access.
 pub struct Storage {
     conn: Connection,
 }
-
-// SAFETY: Storage is wrapped in Mutex in CoreState, so concurrent access is serialized
-unsafe impl Sync for Storage {}
 
 impl Storage {
     /// Создать новое хранилище с шифрованием
@@ -48,36 +43,14 @@ impl Storage {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, StorageError> {
         let conn = Connection::open(&path)?;
         
-        // Получить или создать encryption key через KeyManager
-        let config_path = path.as_ref().parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join("db_key.config");
-        
-        let key_manager = KeyManager::new(config_path);
-        let encryption_key = key_manager.get_or_create_db_key()
-            .map_err(|e| StorageError::EncryptionError(e.to_string()))?;
-        
-        // Try to set SQLCipher encryption key (will fail silently if not compiled with sqlcipher)
-        // For production, this requires rusqlite with sqlcipher feature
-        let _ = conn.pragma_update(None, "key", &format!("\"x'{}'\"", encryption_key));
-        
-        // Set security pragmas for standard SQLite
-        conn.pragma_update(None, "journal_mode", &"WAL")?;
-        conn.pragma_update(None, "synchronous", &"NORMAL")?;
-        
-        // Set SQLCipher PBKDF2 iterations (default is 256000 for SQLCipher 4.x)
-        conn.pragma_update(None, "kdf_iter", &256000)?;
+        // Set optimal SQLite pragmas
+        conn.execute_batch("
+            PRAGMA journal_mode=WAL;
+            PRAGMA synchronous=NORMAL;
+            PRAGMA page_size=4096;
+        ")?;
 
-        // Enable WAL mode for better concurrency and crash recovery
-        conn.execute_batch("PRAGMA journal_mode=WAL")?;
-        
-        // Enable auto_vacuum=INCREMENTAL to prevent unbounded growth
-        conn.execute_batch("PRAGMA auto_vacuum=INCREMENTAL")?;
-        
-        // Set page_size for better performance (must be set before tables created)
-        conn.execute_batch("PRAGMA page_size=4096")?;
-
-        // Создаем таблицы
+        // Create tables
         conn.execute(
             "CREATE TABLE IF NOT EXISTS messages (
                 message_id TEXT PRIMARY KEY,

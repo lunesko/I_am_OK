@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use tokio::sync::RwLock;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use crate::core::{Identity, Packet};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
@@ -67,7 +67,7 @@ pub trait GossipProtocol {
 
 /// Gossip реализация
 pub struct Gossip {
-    storage: Storage,
+    storage: Arc<Mutex<Storage>>,
     transport_manager: TransportManager,
     identity: Arc<RwLock<Option<Identity>>>,
     /// Время последней синхронизации с каждым пиром
@@ -78,7 +78,7 @@ pub struct Gossip {
 
 impl Gossip {
     pub fn new(
-        storage: Storage,
+        storage: Arc<Mutex<Storage>>,
         transport_manager: TransportManager,
         identity: Arc<RwLock<Option<Identity>>>,
     ) -> Self {
@@ -179,7 +179,7 @@ impl GossipProtocol for Gossip {
         match message {
             GossipMessage::DigestRequest { since, max_count } => {
                 // Получаем дайджесты сообщений с момента since
-                let messages = self.storage.get_messages_since(since)?;
+                let messages = self.storage.lock().unwrap().get_messages_since(since)?;
                 let digests: Vec<MessageDigest> = messages.iter()
                     .take(max_count)
                     .filter_map(|msg| Self::create_digest(msg).ok())
@@ -195,7 +195,7 @@ impl GossipProtocol for Gossip {
                 let mut missing_ids = Vec::new();
 
                 for digest in digests {
-                    if !self.storage.is_message_seen(&digest.message_id)? {
+                    if !self.storage.lock().unwrap().is_message_seen(&digest.message_id)? {
                         missing_ids.push(digest.message_id);
                     }
                 }
@@ -214,7 +214,7 @@ impl GossipProtocol for Gossip {
                 let mut messages = Vec::new();
 
                 for id in message_ids {
-                    if let Some(message) = self.storage.get_message_by_id(&id)? {
+                    if let Some(message) = self.storage.lock().unwrap().get_message_by_id(&id)? {
                         messages.push(message);
                     }
                 }
@@ -227,7 +227,7 @@ impl GossipProtocol for Gossip {
             GossipMessage::MessageResponse { messages } => {
                 // Сохраняем полученные сообщения
                 for message in messages {
-                    if let Err(_) = self.storage.store_message(&message) {
+                    if let Err(_) = self.storage.lock().unwrap().store_message(&message) {
                         // Логируем ошибку, но продолжаем
                     }
                 }

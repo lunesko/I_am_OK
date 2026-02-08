@@ -50,9 +50,12 @@ class MainActivity : AppCompatActivity(), Navigator {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main_container)
 
+        android.util.Log.d("MainActivity", "Calling CoreGateway.init...")
         val initResult = CoreGateway.init(this)
+        android.util.Log.d("MainActivity", "CoreGateway.init returned: $initResult")
         if (initResult != 0) {
-            Toast.makeText(this, "Core init error ($initResult)", Toast.LENGTH_SHORT).show()
+            android.util.Log.e("MainActivity", "Core init error: $initResult")
+            Toast.makeText(this, "Core init error ($initResult)", Toast.LENGTH_LONG).show()
             finish()
             return
         }

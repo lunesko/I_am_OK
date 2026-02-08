@@ -4,7 +4,13 @@ import android.content.Context
 import app.poruch.ya_ok.YaOkCore
 
 object CoreGateway {
-    fun init(context: Context): Int = YaOkCore.initWithPath(context.filesDir.absolutePath)
+    fun init(context: Context): Int {
+        val path = context.filesDir.absolutePath
+        android.util.Log.d("CoreGateway", "Initializing with path:  $path")
+        val result = YaOkCore.initWithPath(path)
+        android.util.Log.d("CoreGateway", "Init result code: $result")
+        return result
+    }
 
     fun getIdentityId(): String? = YaOkCore.getIdentityId()
     fun getIdentityX25519PublicKeyHex(): String? = YaOkCore.getIdentityX25519PublicKeyHex()
