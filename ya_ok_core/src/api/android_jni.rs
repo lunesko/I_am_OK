@@ -350,7 +350,7 @@ pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_peerStoreRemove(
 
 #[no_mangle]
 pub extern "system" fn Java_app_poruch_ya_1ok_YaOkCore_getAcksForMessage(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     message_id: JString,
 ) -> jstring {
