@@ -47,7 +47,8 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                 parsed.x25519Hex?.let { x ->
                     CoreGateway.addPeer(parsed.id, x)
                 }
-                showAddContactDialogWithId(parsed.id)
+                // Pass full scannedId to preserve name parameter
+                showAddContactDialogWithId(scannedId)
             }
         }
     }
@@ -131,17 +132,14 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
     }
 
     private fun showAddContactDialogWithId(scannedId: String?) {
-        // Try to get name from deep link first (stored in pending_peers)
-        var prefillName: String? = null
-        if (scannedId != null) {
-            prefillName = requireContext().getSharedPreferences("ya_ok_pending_peers", Context.MODE_PRIVATE)
-                .getString("peer_name_$scannedId", null)
-        }
-        
-        // Parse QR to get name if available
+        // Parse QR to get all data (id, x25519, name)
         val qrData = if (scannedId != null) parseContactQr(scannedId) else null
-        if (prefillName == null) {
-            prefillName = qrData?.name
+        
+        // Try to get name from QR first, then from deep link storage
+        var prefillName: String? = qrData?.name
+        if (prefillName == null && qrData != null) {
+            prefillName = requireContext().getSharedPreferences("ya_ok_pending_peers", Context.MODE_PRIVATE)
+                .getString("peer_name_${qrData.id}", null)
         }
         
         val nameInput = EditText(requireContext()).apply {
@@ -155,8 +153,8 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
         val idInput = EditText(requireContext()).apply {
             hint = "ID (необов'язково)"
             inputType = InputType.TYPE_CLASS_TEXT
-            if (scannedId != null) {
-                setText(scannedId)
+            if (qrData != null) {
+                setText(qrData.id)
                 isEnabled = false
             }
         }
@@ -179,16 +177,16 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                 }
                 val contactId = if (id.isBlank()) "local_${System.currentTimeMillis()}" else id
                 
-                // Parse QR to get x25519 key if available
-                val qrData = if (scannedId != null) parseContactQr(scannedId) else ContactQr(contactId, null, null)
+                // Use already parsed QR data or create default
+                val finalQrData = qrData ?: ContactQr(contactId, null, null)
                 
-                ContactStore.addContact(requireContext(), Contact(qrData.id, name))
+                ContactStore.addContact(requireContext(), Contact(finalQrData.id, name))
                 
                 // CRITICAL: Add peer with x25519 key for bidirectional communication
                 var peerAdded = false
-                if (!qrData.x25519Hex.isNullOrBlank()) {
-                    val result = CoreGateway.addPeer(qrData.id, qrData.x25519Hex)
-                    println("✅ Added peer key for ${qrData.id}: result=$result")
+                if (!finalQrData.x25519Hex.isNullOrBlank()) {
+                    val result = CoreGateway.addPeer(finalQrData.id, finalQrData.x25519Hex)
+                    println("✅ Added peer key for ${finalQrData.id}: result=$result")
                     peerAdded = (result == 0)
                 } else {
                     println("⚠️ QR код без x25519 ключа, двостороння комунікація неможлива")
@@ -206,7 +204,7 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                         null
                     }
                     
-                    println("🔵 Sending contact_add_request: id=$myId, name=$myName, to=${qrData.id}")
+                    println("🔵 Sending contact_add_request: id=$myId, name=$myName, to=${finalQrData.id}")
                     
                     // Send special message with contact info for auto-add
                     val addRequestJson = buildString {
@@ -219,8 +217,8 @@ class FamilyFragment : Fragment(R.layout.fragment_family) {
                         append("}")
                     }
                     // Send to specific contact (peer exists now)
-                    val sendResult = CoreGateway.sendTextTo(addRequestJson, qrData.id)
-                    println("🔵 SendTextTo result: $sendResult (to ${qrData.id})")
+                    val sendResult = CoreGateway.sendTextTo(addRequestJson, finalQrData.id)
+                    println("🔵 SendTextTo result: $sendResult (to ${finalQrData.id})")
                     
                     if (sendResult == 0) {
                         Toast.makeText(requireContext(), "✅ Контакт додано і синхронізовано", Toast.LENGTH_SHORT).show()
