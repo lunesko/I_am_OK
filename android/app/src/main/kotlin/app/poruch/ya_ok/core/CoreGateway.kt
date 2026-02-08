@@ -31,6 +31,10 @@ object CoreGateway {
 
     fun getRecentMessagesFull(limit: Int): String? = YaOkCore.getRecentMessagesFull(limit)
 
+    fun getStats(): String? = YaOkCore.getStats()
+
+    fun getPeerList(): String? = YaOkCore.getPeerList()
+
     fun exportPendingPackets(limit: Int): String? = YaOkCore.exportPendingPackets(limit)
 
     fun exportPendingMessages(limit: Int): String? = YaOkCore.exportPendingMessages(limit)
