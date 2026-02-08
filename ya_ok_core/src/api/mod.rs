@@ -397,6 +397,12 @@ pub extern "C" fn ya_ok_core_init_with_path(base_dir: *const c_char) -> c_int {
     };
 
     let base_path = Path::new(base_dir_str);
+    
+    // Check if already initialized - return success instead of error
+    if CORE_STATE.get().is_some() {
+        return ERR_OK;
+    }
+    
     match CoreState::new_with_base(base_path) {
         Ok(state) => {
             match CORE_STATE.set(Arc::new(state)) {
